@@ -25,9 +25,9 @@ if ($honeypot !== '') {
     ]);
 }
 
-$name = trim(strip_tags((string)($_POST['name'] ?? '')));
+$name  = trim(strip_tags((string)($_POST['name']  ?? '')));
 $email = trim((string)($_POST['email'] ?? ''));
-$phone = trim((string)($_POST['phone'] ?? ''));
+$phone = trim(strip_tags((string)($_POST['phone'] ?? '')));
 $subjectKey = trim((string)($_POST['subject'] ?? ''));
 
 $email = str_replace(["\r", "\n"], '', $email);
@@ -45,8 +45,8 @@ if ($name === '' || strlen($name) < 3) {
     $errors['name'] = 'Informe um nome valido.';
 }
 
-if ($email === '') {
-    $errors['email'] = 'Informe o e-mail para retorno.';
+if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    $errors['email'] = 'Informe um e-mail valido para retorno.';
 }
 
 if (strlen($phoneDigits) < 10 || strlen($phoneDigits) > 15) {
@@ -93,7 +93,7 @@ $headers = [
 $headersRaw = implode("\r\n", $headers);
 $encodedSubject = '=?UTF-8?B?' . base64_encode($mailSubject) . '?=';
 
-$sent = @mail($to, $encodedSubject, $message, $headersRaw);
+$sent = @mail($to, $encodedSubject, $message, $headersRaw, '-f' . $fromAddress);
 
 if (!$sent) {
     jsonResponse(500, [
