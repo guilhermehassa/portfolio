@@ -6,15 +6,15 @@ window.PORTFOLIO_CONTENT = {
       "Landing page profissional de Guilherme Hassã, desenvolvedor web com foco em performance, experiência e resultado.",
     brand: "Guilherme Hassã",
     role: "Desenvolvedor Web",
-    heroTitle: "Interfaces e soluções web que geram resultado de negócio.",
+    heroTitle: "Projetos Web focados em usabilidade e resultado.",
     heroText:
-      "Atuo há mais de 5 anos em projetos digitais para e-commerce, aquisição e ambientes corporativos, equilibrando qualidade técnica, velocidade e objetivos de negócio.",
-    ctaPrimary: "Falar sobre projeto",
-    ctaSecondary: "Explorar stack",
+      "Mais de 5 anos de experiência em produtos digitais diversos: landing pages, sites institucionais, blogs, e-mail marketing, e-commerces e saas completos. Atuação desde a concepção até a publicação do projeto.",
+    ctaPrimary: "Entre em contato",
+    ctaSecondary: "Projetos Relevantes",
     portraitAlt: "Foto profissional de Guilherme Hassã",
-    sectionTechTitle: "Tecnologias e Stack",
+    sectionTechTitle: "Tecnologias e Ferramentas",
     sectionTechText:
-      "Base sólida em front-end, integrações e ecossistemas de conteúdo para construir soluções que performam bem em produção.",
+      "Leque de tecnologias e ferramentas que domino para realizar entregas relevantes aos clientes.",
     techGroups: [
       {
         title: "Base",
@@ -76,26 +76,26 @@ window.PORTFOLIO_CONTENT = {
     ],
     sectionAiTitle: "Desenvolvimento Assistido por IA",
     sectionAiText:
-      "Uso IA para acelerar estruturação, refatoração e investigação técnica, sempre com validação humana em decisões críticas.",
+      "Atuando cada vez mais com desenvolvimento assistido por IA. Atuar dessa forma proporciona projetos cada vez melhores, entregas cada vez mais rápidas e assertivas. Além de permitir entrega com cobertura de testes e validações cada vez mais abrangentes.",
     aiPractices: [
-      "GitHub Copilot para acelerar estruturação de código, refatorações e cenários de teste.",
-      "Fluxo com Claude Code para planejar implementação, validar caminhos e reduzir retrabalho em tarefas complexas.",
-      "Assistentes de IA para debug técnico, documentação de decisões e redução de retrabalho.",
-      "Validação humana nas etapas críticas para manter qualidade, legibilidade e manutenibilidade.",
+      "GitHub Copilot e Claude Code como parceiros de planejamento, revisão de código e debugging; as decisões técnicas continuam sendo humanas.",
+      "Ciclo assistido da arquitetura ao teste: planejar, implementar, revisar e iterar com mais velocidade em tarefas complexas.",
+      "Resultado prático: entregas mais rápidas, menos bugs em produção e documentação técnica mantida no próprio fluxo.",
+      "Validação humana em cada etapa crítica para garantir qualidade, legibilidade e manutenibilidade a longo prazo.",
     ],
     sectionAreasTitle: "Área de Atuação",
     sectionAreasText:
-      "Desenvolvimento orientado à conversão, experiência e escala, com comunicação clara e entrega colaborativa.",
+      "Construo soluções digitais que funcionam em produção, escalam com o negócio e são fáceis de manter (seja para um projeto pontual ou para um time que precisa de reforço).",
     strengths: [
-      "Desenvolvimento web end-to-end para marcas, produtos e operações digitais.",
-      "Foco em fluidez de navegação, performance percebida e manutenção de longo prazo.",
-      "Experiência com interfaces ricas, integrações com APIs e gestão de conteúdo em produção.",
-      "Comunicação clara em português e inglês com colaboração ativa em ambientes Agile/Scrum.",
+      "E-commerce e produto digital: WooCommerce, Next.js e integrações com ERP, CRM e gateways em operações reais de venda.",
+      "WordPress avançado: temas customizados, plugins, ACF, WPML, APIs e projetos multilíngues de alta complexidade.",
+      "Performance técnica: refatoração orientada a resultado, código limpo e entregas sem regressão em produção.",
+      "Inglês avançado e experiência em Agile/Scrum; disponível para times nacionais e internacionais.",
     ],
     sectionProjectsTitle: "Projetos Relevantes",
     sectionProjectsText:
-      "Seleção de entregas relevantes com foco em performance, experiência e resultado de negócio.",
-    projectsCarouselHint: "Navegue pelos cases com foco em resultado e stack.",
+      "Projetos relevantes que atuei durante minha carreira.",
+    projectsCarouselHint: "",
     projectsPrevLabel: "Projeto anterior",
     projectsNextLabel: "Próximo projeto",
     projectsPrevShort: "Anterior",
@@ -107,7 +107,7 @@ window.PORTFOLIO_CONTENT = {
         name: "Pátio Batel",
         url: "https://patiobatel.com.br",
         description:
-          "Redesign da homepage em WordPress com Foundation e PHP, guiado por diretrizes de UX.",
+          "Redesign da homepage orientado a UX para aumentar engajamento e conversão. Desenvolvido em WordPress com Foundation e PHP.",
         image: "assets/images/projects/patio-batel-composite.png",
         imageAlt: "Preview do projeto Pátio Batel",
         imageMode: "background",
@@ -117,7 +117,7 @@ window.PORTFOLIO_CONTENT = {
         name: "Paraná Banco Investimentos",
         url: "https://paranabancoinvestimentos.com.br",
         description:
-          "Projeto em Next.js integrado com WordPress, GTM e CRM, com styled-components e SASS.",
+          "Frontend em Next.js com styled-components e SASS, integrado a WordPress, GTM e CRM para aquisição digital.",
         image: "assets/images/projects/parana-investimentos-composite.png",
         imageAlt: "Preview do projeto Paraná Banco Investimentos",
         imageMode: "background",
@@ -127,7 +127,7 @@ window.PORTFOLIO_CONTENT = {
         name: "HearBetter - Medel",
         url: "https://hearbetter.medel.com",
         description:
-          "Projeto multilíngue de alta complexidade com ACF, WPML e APIs customizadas.",
+          "Plataforma multilíngue de alta complexidade para marca global de saúde auditiva, com ACF, WPML e APIs customizadas.",
         image: "assets/images/projects/hearbetter-composite.png",
         imageAlt: "Preview do projeto HearBetter - Medel",
         imageMode: "background",
@@ -137,7 +137,7 @@ window.PORTFOLIO_CONTENT = {
         name: "ThorBikes",
         url: "https://thorbikes.com.br",
         description:
-          "Catálogo integrado via API do ERP Tiny com interface customizada em Foundation, PHP e SASS.",
+          "Catálogo com centenas de produtos integrado via API do ERP Tiny, com interface customizada em Foundation, PHP e SASS.",
         image: "assets/images/projects/thorbikes-composite.png",
         imageAlt: "Preview do projeto ThorBikes",
         imageMode: "background",
@@ -147,7 +147,7 @@ window.PORTFOLIO_CONTENT = {
         name: "Roca Cerâmica",
         url: "https://www.rocaceramica.com.br",
         description:
-          "Manutenção contínua em WordPress com melhorias de SEO e evolução de interface.",
+          "Evolução contínua do site WordPress com ganhos de SEO técnico e melhoria de experiência de navegação.",
         image: "assets/images/projects/roca-ceramica-composite.png",
         imageAlt: "Preview do projeto Roca Cerâmica",
         imageMode: "background",
@@ -157,7 +157,7 @@ window.PORTFOLIO_CONTENT = {
         name: "Dashboard Cademí",
         url: "",
         description:
-          "Dashboard responsivo com padronização de componentes e requisições assíncronas para melhorar fluidez e manutenção.",
+          "Dashboard SaaS responsivo com componentes padronizados e requisições assíncronas para reduzir carregamento de página.",
         image: "assets/images/projects/cademi-dashboard.svg",
         imageAlt: "Preview do projeto Dashboard Cademí",
         tags: ["Laravel", "Blade", "jQuery", "Bootstrap"],
@@ -171,30 +171,30 @@ window.PORTFOLIO_CONTENT = {
         company: "Cademí",
         period: "dez/2025 a mar/2026",
         summary:
-          "Otimização de páginas e componentes com Laravel MVC, Blade, jQuery e Bootstrap, com ganho de performance percebida.",
+          "Performance percebida melhorada com Laravel, jQuery e Bootstrap; refatoração de legado e AJAX para reduzir requisições desnecessárias.",
       },
       {
         company: "Coopers Digital Productions",
         period: "nov/2022 a jun/2025",
         summary:
-          "Entrega de e-commerces, LPs, institucionais e intranets com foco em SEO, acessibilidade e objetivos de negócio.",
+          "2,5 anos entregando e-commerces, LPs, institucionais e intranets em agência digital; foco em SEO, acessibilidade e resultado de negócio.",
       },
       {
         company: "Gráfica Belas Artes",
         period: "jan/2022 a out/2022",
         summary:
-          "Criação de sites e materiais digitais/impressos, incluindo lançamento do site institucional da empresa.",
+          "Lançamento e desenvolvimento do site institucional da empresa, além de criação de materiais digitais e impressos.",
       },
       {
         company: "Simpletec (freelancer)",
         period: "out/2021 a dez/2021",
         summary:
-          "Planejamento, design e desenvolvimento completo de soluções digitais para pequenos negócios.",
+          "Fundador: planejamento, design e desenvolvimento completo de soluções digitais do zero para pequenos negócios.",
       },
     ],
     sectionContactTitle: "Contato",
     sectionContactText:
-      "Preencha o formulário para receber retorno no seu e-mail. Também pode me chamar pelos canais diretos.",
+      "Fale sobre seu projeto, necessidade de reforço no time ou oportunidade de contratação. Respondo em até 24h úteis.",
     channelsLabel: "Canais diretos",
     languageLabel: "Idioma",
     themeLabel: "Tema",
@@ -235,15 +235,15 @@ window.PORTFOLIO_CONTENT = {
       "Professional landing page for Guilherme Hassã, a web developer focused on performance, experience and business outcomes.",
     brand: "Guilherme Hassã",
     role: "Web Developer",
-    heroTitle: "Web interfaces and solutions built for business impact.",
+    heroTitle: "Web projects focused on usability and results.",
     heroText:
-      "I have 5+ years of experience in digital projects for e-commerce, acquisition and corporate environments, balancing technical quality, speed and business goals.",
-    ctaPrimary: "Start a project",
-    ctaSecondary: "View stack",
+      "5+ years of experience across diverse digital products: landing pages, institutional websites, blogs, email marketing, e-commerce and complete SaaS platforms. Involved from conception through to publication.",
+    ctaPrimary: "Get in touch",
+    ctaSecondary: "Relevant Projects",
     portraitAlt: "Professional portrait of Guilherme Hassã",
-    sectionTechTitle: "Technology Stack",
+    sectionTechTitle: "Technologies and Tools",
     sectionTechText:
-      "Strong front-end, integrations, and content ecosystem expertise to ship production-ready web solutions.",
+      "The range of technologies and tools I master to deliver relevant results for clients.",
     techGroups: [
       {
         title: "Core",
@@ -300,26 +300,26 @@ window.PORTFOLIO_CONTENT = {
     ],
     sectionAiTitle: "AI-Assisted Development",
     sectionAiText:
-      "I use AI to accelerate scaffolding, refactoring and technical investigation with human validation in critical decisions.",
+      "Increasingly working with AI-assisted development. This approach results in better projects, faster and more precise deliveries, as well as increasingly comprehensive test coverage and validation.",
     aiPractices: [
-      "GitHub Copilot to speed up code scaffolding, refactoring and test scenarios.",
-      "Workflow with Claude Code to plan implementation steps, validate options and reduce rework in complex tasks.",
-      "AI assistants for technical debugging, decision documentation and less rework.",
-      "Human validation in critical steps to preserve quality, readability and maintainability.",
+      "GitHub Copilot and Claude Code as partners for planning, code review and debugging; technical decisions stay human.",
+      "Assisted cycle from architecture to testing: plan, implement, review and iterate faster on complex tasks.",
+      "Practical outcome: faster deliveries, fewer production bugs and technical documentation maintained in the flow.",
+      "Human validation at every critical step to ensure quality, readability and long-term maintainability.",
     ],
     sectionAreasTitle: "Area of Expertise",
     sectionAreasText:
-      "Development focused on conversion, experience and scalability, with clear communication and collaborative delivery.",
+      "I build digital solutions that work in production, scale with the business and stay maintainable (whether for a standalone project or a team looking for reinforcement).",
     strengths: [
-      "End-to-end web development for brands, products and digital operations.",
-      "Focus on smooth navigation, perceived performance and long-term maintainability.",
-      "Experience with rich interfaces, API integrations and production content management.",
-      "Clear communication in Portuguese and advanced English with active Agile/Scrum collaboration.",
+      "E-commerce and digital products: WooCommerce, Next.js and real-world integrations with ERP, CRM and payment gateways.",
+      "Advanced WordPress: custom themes, plugins, ACF, WPML, APIs and high-complexity multilingual projects.",
+      "Technical performance: outcome-driven refactoring, clean code and regression-free production delivery.",
+      "Advanced English and Agile/Scrum experience; available for national and international teams.",
     ],
     sectionProjectsTitle: "Relevant Projects",
     sectionProjectsText:
-      "Selected relevant deliveries focused on performance, experience and business outcomes.",
-    projectsCarouselHint: "Browse highlighted cases focused on outcomes and stack.",
+      "Relevant projects I worked on throughout my career.",
+    projectsCarouselHint: "",
     projectsPrevLabel: "Previous project",
     projectsNextLabel: "Next project",
     projectsPrevShort: "Previous",
@@ -331,7 +331,7 @@ window.PORTFOLIO_CONTENT = {
         name: "Pátio Batel",
         url: "https://patiobatel.com.br",
         description:
-          "Homepage redesign in WordPress with Foundation and PHP guided by UX directives.",
+          "UX-driven homepage redesign to boost engagement and conversion, built with WordPress, Foundation and PHP.",
         image: "assets/images/projects/patio-batel-composite.png",
         imageAlt: "Preview of Pátio Batel project",
         imageMode: "background",
@@ -341,7 +341,7 @@ window.PORTFOLIO_CONTENT = {
         name: "Paraná Banco Investimentos",
         url: "https://paranabancoinvestimentos.com.br",
         description:
-          "Next.js project integrated with WordPress, GTM and CRM using styled-components and SASS.",
+          "Next.js frontend with styled-components and SASS, integrated with WordPress, GTM and CRM for digital acquisition.",
         image: "assets/images/projects/parana-investimentos-composite.png",
         imageAlt: "Preview of Paraná Banco Investimentos project",
         imageMode: "background",
@@ -351,7 +351,7 @@ window.PORTFOLIO_CONTENT = {
         name: "HearBetter - Medel",
         url: "https://hearbetter.medel.com",
         description:
-          "High-complexity multilingual project using ACF, WPML and custom APIs.",
+          "High-complexity multilingual platform for a global hearing health brand, using ACF, WPML and custom APIs.",
         image: "assets/images/projects/hearbetter-composite.png",
         imageAlt: "Preview of HearBetter - Medel project",
         imageMode: "background",
@@ -361,7 +361,7 @@ window.PORTFOLIO_CONTENT = {
         name: "ThorBikes",
         url: "https://thorbikes.com.br",
         description:
-          "Catalog integrated with Tiny ERP API and a custom interface built with Foundation, PHP and SASS.",
+          "Product catalog with hundreds of SKUs integrated via Tiny ERP API, with a custom interface in Foundation, PHP and SASS.",
         image: "assets/images/projects/thorbikes-composite.png",
         imageAlt: "Preview of ThorBikes project",
         imageMode: "background",
@@ -371,7 +371,7 @@ window.PORTFOLIO_CONTENT = {
         name: "Roca Cerâmica",
         url: "https://www.rocaceramica.com.br",
         description:
-          "Ongoing WordPress maintenance with SEO improvements and interface evolution.",
+          "Ongoing WordPress evolution with technical SEO gains and improved navigation experience.",
         image: "assets/images/projects/roca-ceramica-composite.png",
         imageAlt: "Preview of Roca Cerâmica project",
         imageMode: "background",
@@ -381,7 +381,7 @@ window.PORTFOLIO_CONTENT = {
         name: "Cademí Dashboard",
         url: "",
         description:
-          "Responsive dashboard with standardized components and asynchronous requests to improve maintainability.",
+          "Responsive SaaS dashboard with standardized components and async requests to cut page load and improve maintainability.",
         image: "assets/images/projects/cademi-dashboard.svg",
         imageAlt: "Preview of Cademí Dashboard project",
         tags: ["Laravel", "Blade", "jQuery", "Bootstrap"],
@@ -395,30 +395,30 @@ window.PORTFOLIO_CONTENT = {
         company: "Cademí",
         period: "Dec/2025 to Mar/2026",
         summary:
-          "Optimized pages and components with Laravel MVC, Blade, jQuery and Bootstrap, improving perceived performance.",
+          "Improved perceived performance with Laravel, jQuery and Bootstrap; legacy refactoring and AJAX to reduce unnecessary requests.",
       },
       {
         company: "Coopers Digital Productions",
         period: "Nov/2022 to Jun/2025",
         summary:
-          "Delivered e-commerce websites, landing pages, institutional websites and intranets with SEO and accessibility focus.",
+          "2.5 years delivering e-commerce, landing pages, institutional sites and intranets at a digital agency; SEO, accessibility and business focus.",
       },
       {
         company: "Gráfica Belas Artes",
         period: "Jan/2022 to Oct/2022",
         summary:
-          "Created websites and digital/print materials, including the launch of the company institutional website.",
+          "Launched the company's institutional website and created digital and print materials from concept to delivery.",
       },
       {
         company: "Simpletec (freelancer)",
         period: "Oct/2021 to Dec/2021",
         summary:
-          "Led planning, design and full development of digital solutions for small businesses.",
+          "Founder: full planning, design and development of digital solutions from scratch for small businesses.",
       },
     ],
     sectionContactTitle: "Contact",
     sectionContactText:
-      "Fill out the form and I will get back to you by email. You can also reach out through direct channels.",
+      "Tell me about your project, team reinforcement needs or hiring opportunity. I respond within 24 business hours.",
     channelsLabel: "Direct channels",
     languageLabel: "Language",
     themeLabel: "Theme",
