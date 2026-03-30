@@ -19,7 +19,9 @@
       document.documentElement.classList.add("js");
     </script>
     <link rel="icon" type="image/svg+xml" href="assets/icons/logo-h.svg" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet" href="assets/css/app.css" />
+    <link rel="stylesheet" href="assets/css/overrides.css" />
   </head>
 
   <body class="font-body">
@@ -45,7 +47,7 @@
             <button
               id="lang-pt"
               type="button"
-              class="segmented-option min-w-[3.9rem]"
+              class="segmented-option"
               aria-pressed="true"
               data-i18n="languagePt"
             >
@@ -54,7 +56,7 @@
             <button
               id="lang-en"
               type="button"
-              class="segmented-option min-w-[3.2rem]"
+              class="segmented-option"
               aria-pressed="false"
               data-i18n="languageEn"
             >
@@ -130,6 +132,33 @@
         </div>
       </section>
 
+      <section id="projects" class="space-y-5" data-animate data-delay="210">
+        <h2 class="section-title" data-i18n="sectionProjectsTitle">Projetos Relevantes</h2>
+        <p class="section-subtitle" data-i18n="sectionProjectsText">
+          Selecao de entregas em producao com foco em performance, experiencia e resultado.
+        </p>
+
+        <div class="projects-carousel glass-panel border border-slate-200/80 p-4 dark:border-slate-700 md:p-6">
+          <div class="projects-toolbar">
+            <p class="projects-hint" data-i18n="projectsCarouselHint">Navegue pelos cases com foco em resultado e stack.</p>
+
+            <div class="projects-controls">
+              <button id="projects-prev" type="button" class="projects-control-btn" data-i18n-aria="projectsPrevLabel">
+                <span data-i18n="projectsPrevShort">Anterior</span>
+              </button>
+              <button id="projects-next" type="button" class="projects-control-btn" data-i18n-aria="projectsNextLabel">
+                <span data-i18n="projectsNextShort">Proximo</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="projects-swiper" class="projects-swiper swiper" aria-live="polite">
+            <div id="projects-list" class="swiper-wrapper"></div>
+          </div>
+          <div id="projects-dots" class="projects-dots" data-i18n-aria="projectsCarouselLabel" aria-label="Carrossel de projetos"></div>
+        </div>
+      </section>
+
       <section id="stack" class="space-y-5" data-animate data-delay="130">
         <h2 class="section-title" data-i18n="sectionTechTitle">Tecnologias e Stack</h2>
         <p class="section-subtitle" data-i18n="sectionTechText">
@@ -154,15 +183,6 @@
         </p>
 
         <ul id="strengths-list" class="grid gap-3 md:grid-cols-2"></ul>
-      </section>
-
-      <section id="projects" class="space-y-5" data-animate data-delay="210">
-        <h2 class="section-title" data-i18n="sectionProjectsTitle">Projetos Recentes</h2>
-        <p class="section-subtitle" data-i18n="sectionProjectsText">
-          Seleção de entregas em produção com foco em performance, experiência e resultado.
-        </p>
-
-        <div id="projects-list" class="grid gap-4 md:grid-cols-2"></div>
       </section>
 
       <section id="experience" class="space-y-5" data-animate data-delay="225">
@@ -252,6 +272,7 @@
     </footer>
 
     <script src="assets/js/content.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js" defer></script>
     <script src="assets/js/main.js" defer></script>
   </body>
 </html>
