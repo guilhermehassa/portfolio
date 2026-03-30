@@ -19,8 +19,12 @@ window.PORTFOLIO_CONTENT = {
       {
         title: "Base",
         items: [
+          { name: "HTML5", icon: "html5" },
+          { name: "CSS3", icon: "css3" },
+          { name: "Sass", icon: "sass" },
           { name: "JavaScript", icon: "javascript" },
           { name: "TypeScript", icon: "typescript" },
+          { name: "Tailwind CSS", icon: "tailwindcss" },
           { name: "PHP", icon: "php" },
         ],
       },
@@ -29,6 +33,7 @@ window.PORTFOLIO_CONTENT = {
         items: [
           { name: "React", icon: "react" },
           { name: "Next.js", icon: "nextdotjs" },
+          { name: "Bootstrap", icon: "bootstrap" },
           { name: "Angular", icon: "angular" },
           { name: "Laravel", icon: "laravel" },
           { name: "WordPress", icon: "wordpress" },
@@ -99,15 +104,6 @@ window.PORTFOLIO_CONTENT = {
     projectVisitLabel: "Ver projeto",
     projects: [
       {
-        name: "Dashboard Cademí",
-        url: "",
-        description:
-          "Dashboard responsivo com padronização de componentes e requisições assíncronas para melhorar fluidez e manutenção.",
-        image: "assets/images/projects/cademi-dashboard.svg",
-        imageAlt: "Preview do projeto Dashboard Cademí",
-        tags: ["Laravel", "Blade", "jQuery", "Bootstrap"],
-      },
-      {
         name: "Pátio Batel",
         url: "https://patiobatel.com.br",
         description:
@@ -156,6 +152,15 @@ window.PORTFOLIO_CONTENT = {
         imageAlt: "Preview do projeto Roca Cerâmica",
         imageMode: "background",
         tags: ["WordPress", "SEO", "Front-end", "Manutenção"],
+      },
+      {
+        name: "Dashboard Cademí",
+        url: "",
+        description:
+          "Dashboard responsivo com padronização de componentes e requisições assíncronas para melhorar fluidez e manutenção.",
+        image: "assets/images/projects/cademi-dashboard.svg",
+        imageAlt: "Preview do projeto Dashboard Cademí",
+        tags: ["Laravel", "Blade", "jQuery", "Bootstrap"],
       },
     ],
     sectionExperienceTitle: "Experiência Recente",
@@ -217,7 +222,10 @@ window.PORTFOLIO_CONTENT = {
       "Mensagem enviada com sucesso. Retorno em breve pelo contato@hassa.dev.br.",
     formError:
       "Nao foi possivel enviar agora. Tente novamente em instantes ou use contato@hassa.dev.br.",
+    formValidationName: "Informe seu nome completo.",
+    formValidationEmail: "Informe um e-mail valido para retorno.",
     formValidationPhone: "Informe um telefone valido com DDD.",
+    formValidationSubject: "Selecione um assunto para a mensagem.",
     footerText: "Guilherme Hassã - Desenvolvedor Web",
   },
   en: {
@@ -320,15 +328,6 @@ window.PORTFOLIO_CONTENT = {
     projectVisitLabel: "Visit project",
     projects: [
       {
-        name: "Cademí Dashboard",
-        url: "",
-        description:
-          "Responsive dashboard with standardized components and asynchronous requests to improve maintainability.",
-        image: "assets/images/projects/cademi-dashboard.svg",
-        imageAlt: "Preview of Cademí Dashboard project",
-        tags: ["Laravel", "Blade", "jQuery", "Bootstrap"],
-      },
-      {
         name: "Pátio Batel",
         url: "https://patiobatel.com.br",
         description:
@@ -377,6 +376,15 @@ window.PORTFOLIO_CONTENT = {
         imageAlt: "Preview of Roca Cerâmica project",
         imageMode: "background",
         tags: ["WordPress", "SEO", "Front-end", "Maintenance"],
+      },
+      {
+        name: "Cademí Dashboard",
+        url: "",
+        description:
+          "Responsive dashboard with standardized components and asynchronous requests to improve maintainability.",
+        image: "assets/images/projects/cademi-dashboard.svg",
+        imageAlt: "Preview of Cademí Dashboard project",
+        tags: ["Laravel", "Blade", "jQuery", "Bootstrap"],
       },
     ],
     sectionExperienceTitle: "Recent Experience",
@@ -437,7 +445,10 @@ window.PORTFOLIO_CONTENT = {
     formSuccess: "Message sent successfully. I will get back soon.",
     formError:
       "Unable to send now. Please try again shortly or email contato@hassa.dev.br.",
+    formValidationName: "Please provide your full name.",
+    formValidationEmail: "Please provide a valid email address.",
     formValidationPhone: "Please provide a valid phone number with area code.",
+    formValidationSubject: "Please select a subject for your message.",
     footerText: "Guilherme Hassã - Web Developer",
   },
 };

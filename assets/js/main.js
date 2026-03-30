@@ -11,9 +11,16 @@
   const projectsPrevButton = document.getElementById("projects-prev");
   const projectsNextButton = document.getElementById("projects-next");
   const projectsDotsContainer = document.getElementById("projects-dots");
+  const projectsTimer = document.getElementById("projects-timer");
+  const projectsTimerProgress = projectsTimer
+    ? projectsTimer.querySelector(".projects-timer-progress")
+    : null;
   const experienceContainer = document.getElementById("experience-list");
   const subjectSelect = document.getElementById("subject");
   const contactForm = document.getElementById("contact-form");
+  const nameInput = document.getElementById("name");
+  const emailInput = document.getElementById("email");
+  const phoneInput = document.getElementById("phone");
   const formStatus = document.getElementById("form-status");
   const submitButton = document.getElementById("form-submit");
   const currentYear = document.getElementById("current-year");
@@ -140,7 +147,47 @@
 
   function renderTechGroups() {
     const copy = getCurrentCopy();
+    if (!techGroupsContainer) {
+      return;
+    }
     techGroupsContainer.innerHTML = "";
+
+    const iconSources = {
+      css3: "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/css3/css3-original.svg",
+      visualstudiocode:
+        "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/vscode/vscode-original.svg",
+      microsoftazure:
+        "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/azure/azure-original.svg",
+    };
+
+    const iconColors = {
+      html5: "e34f26",
+      css3: "1572b6",
+      sass: "cc6699",
+      javascript: "f7df1e",
+      typescript: "3178c6",
+      tailwindcss: "06b6d4",
+      php: "777bb4",
+      react: "61dafb",
+      nextdotjs: "000000",
+      bootstrap: "7952b3",
+      angular: "dd0031",
+      laravel: "ff2d20",
+      wordpress: "21759b",
+      woocommerce: "96588a",
+      graphql: "e10098",
+      hubspot: "ff7a59",
+      googletagmanager: "246fdb",
+      git: "f05032",
+      github: "181717",
+      visualstudiocode: "007acc",
+      figma: "f24e1e",
+      postman: "ff6c37",
+      vercel: "000000",
+      microsoftazure: "0078d4",
+    };
+
+    const darkInvertIcons = new Set(["nextdotjs", "github", "vercel"]);
 
     copy.techGroups.forEach((group) => {
       const card = document.createElement("article");
@@ -164,9 +211,18 @@
         if (icon) {
           const iconEl = document.createElement("img");
           iconEl.className = "tech-icon";
-          iconEl.src = `https://cdn.jsdelivr.net/npm/simple-icons@11/icons/${icon}.svg`;
+          const overrideSrc = iconSources[icon];
+          const iconColor = iconColors[icon];
+          iconEl.src = overrideSrc
+            ? overrideSrc
+            : iconColor
+              ? `https://cdn.simpleicons.org/${icon}/${iconColor}`
+              : `https://cdn.simpleicons.org/${icon}`;
           iconEl.alt = "";
           iconEl.setAttribute("aria-hidden", "true");
+          if (darkInvertIcons.has(icon)) {
+            iconEl.dataset.darkInvert = "true";
+          }
           li.appendChild(iconEl);
         } else {
           const initials = document.createElement("span");
@@ -189,6 +245,9 @@
 
   function renderStrengths() {
     const copy = getCurrentCopy();
+    if (!strengthsContainer) {
+      return;
+    }
     strengthsContainer.innerHTML = "";
 
     copy.strengths.forEach((strength) => {
@@ -202,6 +261,9 @@
 
   function renderAiPractices() {
     const copy = getCurrentCopy();
+    if (!aiListContainer) {
+      return;
+    }
     aiListContainer.innerHTML = "";
 
     copy.aiPractices.forEach((practice) => {
@@ -316,7 +378,7 @@
     }
 
     projectsSwiper = new window.Swiper(projectsSwiperElement, {
-      slidesPerView: 1.1,
+      slidesPerView: 1.2,
       spaceBetween: 14,
       speed: 520,
       grabCursor: true,
@@ -340,17 +402,39 @@
           return `<button type=\"button\" class=\"${className}\" aria-label=\"${label}\"></button>`;
         },
       },
+      autoplay: {
+        delay: 5000,
+        disableOnInteraction: false,
+        pauseOnMouseEnter: true,
+      },
+      on: {
+        autoplayTimeLeft(swiper, time) {
+          if (!projectsTimerProgress) {
+            return;
+          }
+
+          const autoplayConfig = swiper.params.autoplay;
+          const delay = typeof autoplayConfig === "object" ? autoplayConfig.delay : 0;
+          const remaining = delay ? Math.max(0, Math.min(1, time / delay)) : 0;
+          const progress = 1 - remaining;
+          const circumference = 2 * Math.PI * 16;
+          const offset = circumference * (1 - progress);
+
+          projectsTimerProgress.style.strokeDasharray = `${circumference} ${circumference}`;
+          projectsTimerProgress.style.strokeDashoffset = offset.toString();
+        },
+      },
       breakpoints: {
         640: {
           slidesPerView: 1.4,
           spaceBetween: 16,
         },
         768: {
-          slidesPerView: 2.1,
+          slidesPerView: 1.8,
           spaceBetween: 18,
         },
         1024: {
-          slidesPerView: 3.1,
+          slidesPerView: 2.4,
           spaceBetween: 20,
         },
       },
@@ -363,6 +447,9 @@
 
   function renderExperience() {
     const copy = getCurrentCopy();
+    if (!experienceContainer) {
+      return;
+    }
     experienceContainer.innerHTML = "";
 
     copy.experiences.forEach((experience) => {
@@ -456,20 +543,117 @@
     formStatus.classList.remove("hidden");
   }
 
+  function setFieldState(field, isValid) {
+    if (!field) {
+      return;
+    }
+
+    field.classList.toggle("is-invalid", !isValid);
+    field.setAttribute("aria-invalid", String(!isValid));
+  }
+
+  function clearFieldState(field) {
+    if (!field) {
+      return;
+    }
+
+    field.classList.remove("is-invalid");
+    field.removeAttribute("aria-invalid");
+  }
+
+  function validateName(nameValue) {
+    return nameValue.trim().length >= 3;
+  }
+
+  function validateEmail(emailValue) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue.trim());
+  }
+
+  function formatPhoneBr(value) {
+    const digits = value.replace(/\D/g, "").slice(0, 11);
+    if (digits.length <= 2) {
+      return digits;
+    }
+
+    const ddd = digits.slice(0, 2);
+    const rest = digits.slice(2);
+
+    if (rest.length <= 4) {
+      return `(${ddd}) ${rest}`.trim();
+    }
+
+    if (rest.length <= 8) {
+      return `(${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
+    }
+
+    return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+  }
+
+  function handlePhoneInput(event) {
+    const input = event.target;
+    const formatted = formatPhoneBr(input.value);
+    if (input.value !== formatted) {
+      input.value = formatted;
+    }
+  }
+
   function validatePhone(phoneValue) {
-    return /^[0-9+()\-\s]{8,20}$/.test(phoneValue.trim());
+    const digits = phoneValue.replace(/\D/g, "");
+    return digits.length === 10 || digits.length === 11;
+  }
+
+  function validateSubject(subjectValue, options) {
+    return Boolean(subjectValue && Object.prototype.hasOwnProperty.call(options, subjectValue));
+  }
+
+  function validateForm(copy) {
+    const nameValue = nameInput.value;
+    const emailValue = emailInput.value;
+    const phoneValue = phoneInput.value;
+    const subjectValue = subjectSelect.value;
+
+    const isNameValid = validateName(nameValue);
+    const isEmailValid = validateEmail(emailValue);
+    const isPhoneValid = validatePhone(phoneValue);
+    const isSubjectValid = validateSubject(subjectValue, copy.subjectOptions);
+
+    setFieldState(nameInput, isNameValid);
+    setFieldState(emailInput, isEmailValid);
+    setFieldState(phoneInput, isPhoneValid);
+    setFieldState(subjectSelect, isSubjectValid);
+
+    if (!isNameValid) {
+      return { isValid: false, message: copy.formValidationName, field: nameInput };
+    }
+
+    if (!isEmailValid) {
+      return { isValid: false, message: copy.formValidationEmail, field: emailInput };
+    }
+
+    if (!isPhoneValid) {
+      return { isValid: false, message: copy.formValidationPhone, field: phoneInput };
+    }
+
+    if (!isSubjectValid) {
+      return { isValid: false, message: copy.formValidationSubject, field: subjectSelect };
+    }
+
+    return { isValid: true };
   }
 
   async function submitForm(event) {
     event.preventDefault();
     const copy = getCurrentCopy();
-    const formData = new FormData(contactForm);
-
-    const phoneValue = String(formData.get("phone") || "");
-    if (!validatePhone(phoneValue)) {
-      showStatus("error", copy.formValidationPhone);
+    const validation = validateForm(copy);
+    if (!validation.isValid) {
+      showStatus("error", validation.message);
+      if (validation.field) {
+        validation.field.focus();
+      }
       return;
     }
+
+    const formData = new FormData(contactForm);
 
     submitButton.disabled = true;
     submitButton.textContent = copy.formSending;
@@ -495,6 +679,10 @@
       }
 
       contactForm.reset();
+      clearFieldState(nameInput);
+      clearFieldState(emailInput);
+      clearFieldState(phoneInput);
+      clearFieldState(subjectSelect);
       showStatus("success", payload.message || copy.formSuccess);
     } catch (error) {
       showStatus("error", error.message || copy.formError);
@@ -532,6 +720,21 @@
     languagePt.addEventListener("click", () => setLanguage("pt-BR", true));
     languageEn.addEventListener("click", () => setLanguage("en", true));
 
+    if (phoneInput) {
+      phoneInput.addEventListener("input", handlePhoneInput);
+      phoneInput.addEventListener("blur", () => setFieldState(phoneInput, validatePhone(phoneInput.value)));
+    }
+    if (nameInput) {
+      nameInput.addEventListener("blur", () => setFieldState(nameInput, validateName(nameInput.value)));
+    }
+    if (emailInput) {
+      emailInput.addEventListener("blur", () => setFieldState(emailInput, validateEmail(emailInput.value)));
+    }
+    if (subjectSelect) {
+      subjectSelect.addEventListener("change", () =>
+        setFieldState(subjectSelect, validateSubject(subjectSelect.value, getCurrentCopy().subjectOptions))
+      );
+    }
     contactForm.addEventListener("submit", submitForm);
 
     prefersDarkQuery.addEventListener("change", (event) => {

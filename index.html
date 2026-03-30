@@ -143,6 +143,12 @@
             <p class="projects-hint" data-i18n="projectsCarouselHint">Navegue pelos cases com foco em resultado e stack.</p>
 
             <div class="projects-controls">
+              <div id="projects-timer" class="projects-timer" aria-hidden="true">
+                <svg class="projects-timer-ring" viewBox="0 0 36 36" aria-hidden="true">
+                  <circle class="projects-timer-track" cx="18" cy="18" r="16" />
+                  <circle class="projects-timer-progress" cx="18" cy="18" r="16" />
+                </svg>
+              </div>
               <button id="projects-prev" type="button" class="projects-control-btn" data-i18n-aria="projectsPrevLabel">
                 <span data-i18n="projectsPrevShort">Anterior</span>
               </button>
@@ -185,15 +191,6 @@
         <ul id="strengths-list" class="grid gap-3 md:grid-cols-2"></ul>
       </section>
 
-      <section id="experience" class="space-y-5" data-animate data-delay="225">
-        <h2 class="section-title" data-i18n="sectionExperienceTitle">Experiência Recente</h2>
-        <p class="section-subtitle" data-i18n="sectionExperienceText">
-          Atuação em produtos digitais, e-commerce e ambientes corporativos com entregas orientadas a negócio.
-        </p>
-
-        <ul id="experience-list" class="grid gap-3 md:grid-cols-2"></ul>
-      </section>
-
       <section id="contact" class="glass-panel grid gap-7 p-6 md:grid-cols-[1fr_1.2fr] md:p-8" data-animate data-delay="240">
         <div class="space-y-4">
           <h2 class="section-title" data-i18n="sectionContactTitle">Contato</h2>
@@ -234,7 +231,7 @@
           <div class="grid gap-4 sm:grid-cols-2">
             <div>
               <label for="email" class="field-label" data-i18n="formEmailLabel">E-mail</label>
-              <input id="email" name="email" type="text" inputmode="email" class="field-input" data-i18n-placeholder="formEmailPlaceholder" placeholder="voce@empresa.com" required />
+              <input id="email" name="email" type="email" inputmode="email" class="field-input" data-i18n-placeholder="formEmailPlaceholder" placeholder="voce@empresa.com" required />
             </div>
             <div>
               <label for="phone" class="field-label" data-i18n="formPhoneLabel">Telefone</label>
