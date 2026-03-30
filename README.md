@@ -2,6 +2,10 @@
 
 Landing page comercial bilíngue (PT-BR/EN) com Tailwind CSS, tema claro/escuro e formulário PHP para envio de contato.
 
+## Status do formulário
+- Validações ativas: nome, telefone e assunto.
+- E-mail: obrigatório, mas sem validação de formato nesta versão.
+
 ## Requisitos
 - Node.js 18+
 - npm
