@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="pt-BR" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Landing page profissional de Guilherme Hassã, desenvolvedor web com foco em performance, experiência e resultado."
+    />
+    <title>Guilherme Hassã - Desenvolvedor Web</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      document.documentElement.classList.add("js");
+    </script>
+    <link rel="icon" type="image/svg+xml" href="assets/icons/logo-h.svg" />
+    <link rel="stylesheet" href="assets/css/app.css" />
+  </head>
+
+  <body class="font-body">
+    <div class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+      <div class="absolute -left-20 top-24 h-72 w-72 rounded-full bg-brand-300/30 blur-3xl dark:bg-brand-700/25"></div>
+      <div class="absolute -right-24 top-64 h-80 w-80 rounded-full bg-slate-300/35 blur-3xl dark:bg-slate-700/30"></div>
+      <div class="absolute bottom-0 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-brand-600/15 blur-3xl dark:bg-brand-400/15"></div>
+    </div>
+
+    <header class="mx-auto w-full max-w-6xl px-4 pb-4 pt-6 sm:px-6 lg:px-8">
+      <div class="glass-panel flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between md:p-5" data-animate data-delay="50">
+        <a href="#hero" class="inline-flex items-center gap-3">
+          <img src="assets/icons/logo-h.svg" alt="Logo H" class="h-10 w-10 text-brand-700 dark:text-brand-300" />
+          <div>
+            <p class="font-display text-lg font-semibold leading-tight text-slate-900 dark:text-slate-100" data-i18n="brand">Guilherme Hassã</p>
+            <p class="text-sm text-slate-600 dark:text-slate-300" data-i18n="role">Desenvolvedor Web</p>
+          </div>
+        </a>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="inline-flex rounded-xl border border-slate-300 bg-white/80 p-1 dark:border-slate-700 dark:bg-slate-900/80" role="group" aria-label="Idioma">
+            <button
+              id="lang-pt"
+              type="button"
+              class="rounded-lg px-3 py-2 text-xs font-semibold transition"
+              aria-pressed="true"
+              data-i18n="languagePt"
+            >
+              PT-BR
+            </button>
+            <button
+              id="lang-en"
+              type="button"
+              class="rounded-lg px-3 py-2 text-xs font-semibold transition"
+              aria-pressed="false"
+              data-i18n="languageEn"
+            >
+              EN
+            </button>
+          </div>
+
+          <button id="theme-toggle" type="button" class="btn-secondary text-xs" data-i18n="themeButtonDark">
+            Ativar modo escuro
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="mx-auto w-full max-w-6xl space-y-14 px-4 pb-16 sm:px-6 lg:px-8">
+      <section
+        id="hero"
+        class="glass-panel grid gap-8 overflow-hidden p-6 md:grid-cols-[1.3fr_1fr] md:p-10"
+        data-animate
+        data-delay="90"
+      >
+        <div class="space-y-6">
+          <span class="chip" data-i18n="badge">Disponível para projetos e contratação</span>
+
+          <h1 class="font-display text-4xl font-semibold leading-tight text-slate-900 dark:text-slate-100 md:text-5xl" data-i18n="heroTitle">
+            Interfaces e soluções web que geram resultado de negócio.
+          </h1>
+
+          <p class="max-w-2xl text-base leading-relaxed text-slate-700 dark:text-slate-300 md:text-lg" data-i18n="heroText">
+            Atuo há mais de 5 anos em produtos digitais, e-commerce e ambientes corporativos, combinando performance percebida, boa experiência e código sustentável.
+          </p>
+
+          <div class="flex flex-wrap gap-3">
+            <a href="#contact" class="btn-primary" data-i18n="ctaPrimary">Falar sobre projeto</a>
+            <a href="#stack" class="btn-secondary" data-i18n="ctaSecondary">Explorar stack</a>
+          </div>
+        </div>
+
+        <div class="relative mx-auto w-full max-w-xs md:max-w-sm">
+          <div class="absolute -inset-1 rounded-[2rem] bg-gradient-to-tr from-brand-500/40 via-brand-300/20 to-slate-300/20 blur-md dark:from-brand-300/35 dark:to-slate-700/25"></div>
+          <img
+            src="perfil.png"
+            alt="Foto profissional de Guilherme Hassã"
+            data-i18n-alt="portraitAlt"
+            class="relative aspect-square w-full rounded-[2rem] border border-white/70 object-cover shadow-card dark:border-slate-700"
+          />
+        </div>
+      </section>
+
+      <section id="stack" class="space-y-5" data-animate data-delay="130">
+        <h2 class="section-title" data-i18n="sectionTechTitle">Tecnologias e Stack</h2>
+        <p class="section-subtitle" data-i18n="sectionTechText">
+          Base sólida em front-end, integrações e ecossistemas de conteúdo para construir soluções que performam bem em produção.
+        </p>
+        <div id="tech-groups" class="grid gap-4 md:grid-cols-2"></div>
+      </section>
+
+      <section id="areas" class="space-y-5" data-animate data-delay="180">
+        <h2 class="section-title" data-i18n="sectionAreasTitle">Área de Atuação</h2>
+        <p class="section-subtitle" data-i18n="sectionAreasText">
+          Desenvolvimento orientado à conversão, experiência e escala, com comunicação clara e entrega colaborativa.
+        </p>
+
+        <ul id="strengths-list" class="grid gap-3 md:grid-cols-2"></ul>
+      </section>
+
+      <section id="contact" class="glass-panel grid gap-7 p-6 md:grid-cols-[1fr_1.2fr] md:p-8" data-animate data-delay="240">
+        <div class="space-y-4">
+          <h2 class="section-title" data-i18n="sectionContactTitle">Contato</h2>
+          <p class="section-subtitle" data-i18n="sectionContactText">
+            Preencha o formulário para receber retorno no seu e-mail. Também pode me chamar pelos canais diretos.
+          </p>
+
+          <div>
+            <p class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300" data-i18n="channelsLabel">
+              Canais diretos
+            </p>
+            <ul class="space-y-2 text-sm text-slate-700 dark:text-slate-200">
+              <li>
+                <a class="underline decoration-brand-400 decoration-2 underline-offset-4 hover:text-brand-700 dark:hover:text-brand-300" href="https://linkedin.com/in/guilhermehassa" target="_blank" rel="noreferrer">
+                  LinkedIn
+                </a>
+              </li>
+              <li>
+                <a class="underline decoration-brand-400 decoration-2 underline-offset-4 hover:text-brand-700 dark:hover:text-brand-300" href="https://github.com/guilhermehassa" target="_blank" rel="noreferrer">
+                  GitHub
+                </a>
+              </li>
+              <li>
+                <a class="underline decoration-brand-400 decoration-2 underline-offset-4 hover:text-brand-700 dark:hover:text-brand-300" href="mailto:contato@hassa.dev.br">
+                  contato@hassa.dev.br
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <form id="contact-form" class="space-y-4" novalidate>
+          <div>
+            <label for="name" class="field-label" data-i18n="formNameLabel">Nome</label>
+            <input id="name" name="name" type="text" class="field-input" data-i18n-placeholder="formNamePlaceholder" placeholder="Seu nome completo" required />
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label for="email" class="field-label" data-i18n="formEmailLabel">E-mail</label>
+              <input id="email" name="email" type="text" inputmode="email" class="field-input" data-i18n-placeholder="formEmailPlaceholder" placeholder="voce@empresa.com" required />
+            </div>
+            <div>
+              <label for="phone" class="field-label" data-i18n="formPhoneLabel">Telefone</label>
+              <input id="phone" name="phone" type="tel" class="field-input" data-i18n-placeholder="formPhonePlaceholder" placeholder="(11) 99999-9999" required />
+            </div>
+          </div>
+
+          <div>
+            <label for="subject" class="field-label" data-i18n="formSubjectLabel">Assunto</label>
+            <select id="subject" name="subject" class="field-input" required></select>
+          </div>
+
+          <div class="hidden" aria-hidden="true">
+            <label for="website">Website</label>
+            <input id="website" name="website" type="text" tabindex="-1" autocomplete="off" />
+          </div>
+
+          <button id="form-submit" type="submit" class="btn-primary w-full" data-i18n="formSubmit">
+            Enviar contato
+          </button>
+
+          <p id="form-status" class="hidden"></p>
+        </form>
+      </section>
+    </main>
+
+    <footer class="mx-auto w-full max-w-6xl px-4 pb-8 sm:px-6 lg:px-8">
+      <div class="flex flex-col items-start justify-between gap-3 border-t border-slate-300/80 pt-6 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300 md:flex-row md:items-center">
+        <p data-i18n="footerText">Guilherme Hassã - Desenvolvedor Web</p>
+        <p>
+          <span id="current-year"></span>
+          <span>· hassa.dev.br</span>
+        </p>
+      </div>
+    </footer>
+
+    <script src="assets/js/content.js" defer></script>
+    <script src="assets/js/main.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply min-h-screen bg-slate-100 text-slate-900 antialiased transition-colors duration-300;
+    background-image:
+      radial-gradient(circle at 10% 10%, rgba(33, 72, 182, 0.1), transparent 42%),
+      radial-gradient(circle at 88% 18%, rgba(15, 27, 54, 0.09), transparent 34%),
+      linear-gradient(180deg, #f8fafc 0%, #eef2ff 55%, #e2e8f0 100%);
+  }
+
+  .dark body {
+    @apply bg-slate-950 text-slate-100;
+    background-image:
+      radial-gradient(circle at 12% 10%, rgba(77, 129, 245, 0.18), transparent 38%),
+      radial-gradient(circle at 84% 24%, rgba(15, 27, 54, 0.24), transparent 32%),
+      linear-gradient(180deg, #020617 0%, #0b1120 55%, #111827 100%);
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply rounded-lg border border-white/60 bg-white/70 shadow-card backdrop-blur-xl;
+  }
+
+  .dark .glass-panel {
+    @apply border-slate-700/80 bg-slate-900/70;
+  }
+
+  .section-title {
+    @apply font-display text-3xl font-semibold leading-tight tracking-tight text-brand-900 md:text-4xl;
+  }
+
+  .dark .section-title {
+    @apply text-brand-100;
+  }
+
+  .section-subtitle {
+    @apply max-w-3xl text-base text-slate-600 md:text-lg;
+  }
+
+  .dark .section-subtitle {
+    @apply text-slate-300;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-md bg-brand-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100;
+  }
+
+  .dark .btn-primary {
+    @apply focus-visible:ring-offset-slate-950;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-md border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-brand-300 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100;
+  }
+
+  .dark .btn-secondary {
+    @apply border-slate-600 text-slate-200 hover:border-brand-500 hover:text-brand-200 focus-visible:ring-offset-slate-950;
+  }
+
+  .chip {
+    @apply inline-flex items-center rounded-md border border-brand-200/80 bg-brand-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-brand-800;
+  }
+
+  .dark .chip {
+    @apply border-brand-800 bg-brand-900/50 text-brand-100;
+  }
+
+  .field-label {
+    @apply mb-2 block text-sm font-medium text-slate-700;
+  }
+
+  .dark .field-label {
+    @apply text-slate-200;
+  }
+
+  .field-input {
+    @apply w-full rounded-md border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-200;
+  }
+
+  .dark .field-input {
+    @apply border-slate-700 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus:border-brand-400 focus:ring-brand-800;
+  }
+}
+
+[data-animate] {
+  opacity: 1;
+  transform: none;
+}
+
+.js [data-animate] {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+}
+
+.js [data-animate].is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
