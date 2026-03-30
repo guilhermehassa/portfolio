@@ -1,0 +1,11 @@
+.projects-carousel{max-width:62rem;margin-left:auto;margin-right:auto}
+.project-media.has-background{background-position:center;background-size:cover;background-repeat:no-repeat}
+.project-image--hidden{opacity:0}
+.tech-chips{display:flex;flex-wrap:wrap;gap:.5rem}
+.tech-chip{display:inline-flex;align-items:center;gap:.5rem;border-radius:.5rem;border:1px solid rgba(183,208,255,.7);background-color:rgba(238,245,255,.7);padding:.35rem .75rem;font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:#1f346f;transition:transform .2s ease,box-shadow .2s ease}
+.tech-chip:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(15,27,54,.12)}
+.tech-icon{height:16px;width:16px;opacity:.75;filter:brightness(0) saturate(100%)}
+.tech-initials{display:inline-flex;align-items:center;justify-content:center;height:16px;width:16px;border-radius:9999px;background:rgba(29,59,143,.12);font-size:9px;font-weight:700;color:#1f346f}
+.dark .tech-chip{border-color:rgba(31,52,111,.9);background-color:rgba(15,27,54,.55);color:#dce8ff}
+.dark .tech-icon{filter:brightness(0) invert(1);opacity:.8}
+.dark .tech-initials{background:rgba(183,208,255,.14);color:#dce8ff}

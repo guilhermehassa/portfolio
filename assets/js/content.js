@@ -18,23 +18,55 @@ window.PORTFOLIO_CONTENT = {
     techGroups: [
       {
         title: "Base",
-        items: ["JavaScript", "TypeScript", "PHP"],
+        items: [
+          { name: "JavaScript", icon: "javascript" },
+          { name: "TypeScript", icon: "typescript" },
+          { name: "PHP", icon: "php" },
+        ],
       },
       {
         title: "Frameworks e CMS",
-        items: ["React", "Next.js", "Angular", "Laravel", "WordPress"],
+        items: [
+          { name: "React", icon: "react" },
+          { name: "Next.js", icon: "nextdotjs" },
+          { name: "Angular", icon: "angular" },
+          { name: "Laravel", icon: "laravel" },
+          { name: "WordPress", icon: "wordpress" },
+        ],
       },
       {
         title: "E-commerce e conteúdo",
-        items: ["WooCommerce", "ACF", "CF7", "WPML", "Yoast SEO", "CPTs"],
+        items: [
+          { name: "WooCommerce", icon: "woocommerce" },
+          { name: "ACF" },
+          { name: "CF7" },
+          { name: "WPML" },
+          { name: "Yoast SEO" },
+          { name: "CPTs" },
+        ],
       },
       {
         title: "Integrações e workflow",
-        items: ["REST APIs", "GraphQL", "Webhooks", "HubSpot", "RD Station", "GTM"],
+        items: [
+          { name: "REST APIs" },
+          { name: "GraphQL", icon: "graphql" },
+          { name: "Webhooks" },
+          { name: "HubSpot", icon: "hubspot" },
+          { name: "RD Station" },
+          { name: "GTM", icon: "googletagmanager" },
+        ],
       },
       {
         title: "Ferramentas",
-        items: ["Git", "GitHub", "VSCode", "Figma", "Postman", "Vercel", "Azure"],
+        items: [
+          { name: "Git", icon: "git" },
+          { name: "GitHub", icon: "github" },
+          { name: "VSCode", icon: "visualstudiocode" },
+          { name: "Figma", icon: "figma" },
+          { name: "Postman", icon: "postman" },
+          { name: "Vercel", icon: "vercel" },
+          { name: "Azure", icon: "microsoftazure" },
+        ],
       },
     ],
     sectionAiTitle: "Desenvolvimento Assistido por IA",
@@ -207,23 +239,55 @@ window.PORTFOLIO_CONTENT = {
     techGroups: [
       {
         title: "Core",
-        items: ["JavaScript", "TypeScript", "PHP"],
+        items: [
+          { name: "JavaScript", icon: "javascript" },
+          { name: "TypeScript", icon: "typescript" },
+          { name: "PHP", icon: "php" },
+        ],
       },
       {
         title: "Frameworks and CMS",
-        items: ["React", "Next.js", "Angular", "Laravel", "WordPress"],
+        items: [
+          { name: "React", icon: "react" },
+          { name: "Next.js", icon: "nextdotjs" },
+          { name: "Angular", icon: "angular" },
+          { name: "Laravel", icon: "laravel" },
+          { name: "WordPress", icon: "wordpress" },
+        ],
       },
       {
         title: "E-commerce and content",
-        items: ["WooCommerce", "ACF", "CF7", "WPML", "Yoast SEO", "CPTs"],
+        items: [
+          { name: "WooCommerce", icon: "woocommerce" },
+          { name: "ACF" },
+          { name: "CF7" },
+          { name: "WPML" },
+          { name: "Yoast SEO" },
+          { name: "CPTs" },
+        ],
       },
       {
         title: "Integrations and workflow",
-        items: ["REST APIs", "GraphQL", "Webhooks", "HubSpot", "RD Station", "GTM"],
+        items: [
+          { name: "REST APIs" },
+          { name: "GraphQL", icon: "graphql" },
+          { name: "Webhooks" },
+          { name: "HubSpot", icon: "hubspot" },
+          { name: "RD Station" },
+          { name: "GTM", icon: "googletagmanager" },
+        ],
       },
       {
         title: "Tools",
-        items: ["Git", "GitHub", "VSCode", "Figma", "Postman", "Vercel", "Azure"],
+        items: [
+          { name: "Git", icon: "git" },
+          { name: "GitHub", icon: "github" },
+          { name: "VSCode", icon: "visualstudiocode" },
+          { name: "Figma", icon: "figma" },
+          { name: "Postman", icon: "postman" },
+          { name: "Vercel", icon: "vercel" },
+          { name: "Azure", icon: "microsoftazure" },
+        ],
       },
     ],
     sectionAiTitle: "AI-Assisted Development",

@@ -6,7 +6,11 @@
   const techGroupsContainer = document.getElementById("tech-groups");
   const aiListContainer = document.getElementById("ai-list");
   const strengthsContainer = document.getElementById("strengths-list");
+  const projectsSwiperElement = document.getElementById("projects-swiper");
   const projectsContainer = document.getElementById("projects-list");
+  const projectsPrevButton = document.getElementById("projects-prev");
+  const projectsNextButton = document.getElementById("projects-next");
+  const projectsDotsContainer = document.getElementById("projects-dots");
   const experienceContainer = document.getElementById("experience-list");
   const subjectSelect = document.getElementById("subject");
   const contactForm = document.getElementById("contact-form");
@@ -26,6 +30,8 @@
     lang: getInitialLanguage(),
     theme: getInitialTheme(),
   };
+
+  let projectsSwiper = null;
 
   function getInitialLanguage() {
     const stored = localStorage.getItem(LANGUAGE_KEY);
@@ -122,6 +128,16 @@
     });
   }
 
+  function getInitials(label) {
+    return label
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) => word[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+  }
+
   function renderTechGroups() {
     const copy = getCurrentCopy();
     techGroupsContainer.innerHTML = "";
@@ -136,12 +152,32 @@
       title.textContent = group.title;
 
       const list = document.createElement("ul");
-      list.className = "mt-4 flex flex-wrap gap-2";
+      list.className = "mt-4 flex flex-wrap gap-2 tech-chips";
 
       group.items.forEach((item) => {
+        const label = typeof item === "string" ? item : item.name;
+        const icon = typeof item === "object" ? item.icon : null;
+
         const li = document.createElement("li");
-        li.className = "chip";
-        li.textContent = item;
+        li.className = "chip tech-chip";
+
+        if (icon) {
+          const iconEl = document.createElement("img");
+          iconEl.className = "tech-icon";
+          iconEl.src = `https://cdn.jsdelivr.net/npm/simple-icons@11/icons/${icon}.svg`;
+          iconEl.alt = "";
+          iconEl.setAttribute("aria-hidden", "true");
+          li.appendChild(iconEl);
+        } else {
+          const initials = document.createElement("span");
+          initials.className = "tech-initials";
+          initials.textContent = getInitials(label);
+          li.appendChild(initials);
+        }
+
+        const text = document.createElement("span");
+        text.textContent = label;
+        li.appendChild(text);
         list.appendChild(li);
       });
 
@@ -179,37 +215,150 @@
 
   function renderProjects() {
     const copy = getCurrentCopy();
+
+    if (!projectsContainer) {
+      return;
+    }
+
+    const previousIndex = projectsSwiper ? projectsSwiper.realIndex : 0;
+    destroyProjectsSwiper();
     projectsContainer.innerHTML = "";
 
     copy.projects.forEach((project) => {
       const card = document.createElement("article");
-      card.className =
-        "glass-panel border border-slate-200/80 p-5 dark:border-slate-700";
+      card.className = "project-slide swiper-slide";
+
+      const media = document.createElement("div");
+      media.className = "project-media";
+
+      const image = document.createElement("img");
+      image.className = "project-image";
+      image.src = project.image || "assets/images/projects/project-placeholder.svg";
+      image.alt = project.imageAlt || project.name;
+      image.loading = "lazy";
+      image.decoding = "async";
+
+      if (project.imageMode === "background") {
+        media.classList.add("has-background");
+        media.style.backgroundImage = `url('${image.src}')`;
+        image.classList.add("project-image--hidden");
+      }
+
+      media.appendChild(image);
+
+      const contentWrapper = document.createElement("div");
+      contentWrapper.className = "project-content";
 
       const title = document.createElement("h3");
-      title.className = "font-display text-xl font-semibold text-slate-900 dark:text-slate-100";
+      title.className = "project-title";
       title.textContent = project.name;
 
       const description = document.createElement("p");
-      description.className = "mt-3 text-sm leading-relaxed text-slate-700 dark:text-slate-300";
+      description.className = "project-description";
       description.textContent = project.description;
 
-      card.appendChild(title);
-      card.appendChild(description);
+      contentWrapper.appendChild(title);
+      contentWrapper.appendChild(description);
+
+      if (Array.isArray(project.tags) && project.tags.length) {
+        const meta = document.createElement("ul");
+        meta.className = "project-meta";
+
+        project.tags.forEach((tag) => {
+          const item = document.createElement("li");
+          item.className = "project-chip";
+          item.textContent = tag;
+          meta.appendChild(item);
+        });
+
+        contentWrapper.appendChild(meta);
+      }
 
       if (project.url) {
         const link = document.createElement("a");
         link.href = project.url;
         link.target = "_blank";
         link.rel = "noreferrer";
-        link.className =
-          "mt-4 inline-flex text-sm font-semibold text-brand-700 underline decoration-brand-400 decoration-2 underline-offset-4 transition hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200";
+        link.className = "project-link";
         link.textContent = copy.projectVisitLabel;
-        card.appendChild(link);
+        contentWrapper.appendChild(link);
       }
 
+      card.appendChild(media);
+      card.appendChild(contentWrapper);
       projectsContainer.appendChild(card);
     });
+
+    initProjectsSwiper(copy.projects, previousIndex);
+  }
+
+  function destroyProjectsSwiper() {
+    if (projectsSwiper && typeof projectsSwiper.destroy === "function") {
+      projectsSwiper.destroy(true, true);
+    }
+
+    projectsSwiper = null;
+  }
+
+  function initProjectsSwiper(projects, initialIndex = 0) {
+    if (!projectsSwiperElement || !projectsContainer || !window.Swiper) {
+      return;
+    }
+
+    const hasMultipleProjects = projects.length > 1;
+
+    if (projectsPrevButton) {
+      projectsPrevButton.disabled = !hasMultipleProjects;
+    }
+
+    if (projectsNextButton) {
+      projectsNextButton.disabled = !hasMultipleProjects;
+    }
+
+    projectsSwiper = new window.Swiper(projectsSwiperElement, {
+      slidesPerView: 1.1,
+      spaceBetween: 14,
+      speed: 520,
+      grabCursor: true,
+      loop: hasMultipleProjects,
+      keyboard: {
+        enabled: true,
+        onlyInViewport: true,
+      },
+      navigation: {
+        prevEl: projectsPrevButton,
+        nextEl: projectsNextButton,
+      },
+      pagination: {
+        el: projectsDotsContainer,
+        clickable: true,
+        bulletClass: "projects-dot",
+        bulletActiveClass: "is-active",
+        renderBullet(index, className) {
+          const project = projects[index];
+          const label = project && project.name ? project.name : `Slide ${index + 1}`;
+          return `<button type=\"button\" class=\"${className}\" aria-label=\"${label}\"></button>`;
+        },
+      },
+      breakpoints: {
+        640: {
+          slidesPerView: 1.4,
+          spaceBetween: 16,
+        },
+        768: {
+          slidesPerView: 2.1,
+          spaceBetween: 18,
+        },
+        1024: {
+          slidesPerView: 3.1,
+          spaceBetween: 20,
+        },
+      },
+    });
+
+    if (initialIndex > 0 && hasMultipleProjects) {
+      projectsSwiper.slideToLoop(initialIndex, 0, false);
+    }
   }
 
   function renderExperience() {
