@@ -42,6 +42,7 @@ window.PORTFOLIO_CONTENT = {
       "Uso IA para acelerar estruturação, refatoração e investigação técnica, sempre com validação humana em decisões críticas.",
     aiPractices: [
       "GitHub Copilot para acelerar estruturação de código, refatorações e cenários de teste.",
+      "Fluxo com Claude Code para planejar implementação, validar caminhos e reduzir retrabalho em tarefas complexas.",
       "Assistentes de IA para debug técnico, documentação de decisões e redução de retrabalho.",
       "Validação humana nas etapas críticas para manter qualidade, legibilidade e manutenibilidade.",
     ],
@@ -54,9 +55,15 @@ window.PORTFOLIO_CONTENT = {
       "Experiência com interfaces ricas, integrações com APIs e gestão de conteúdo em produção.",
       "Comunicação clara em português e inglês com colaboração ativa em ambientes Agile/Scrum.",
     ],
-    sectionProjectsTitle: "Projetos Recentes",
+    sectionProjectsTitle: "Projetos Relevantes",
     sectionProjectsText:
-      "Seleção de entregas em produção com foco em performance, experiência e resultado.",
+      "Seleção de entregas relevantes com foco em performance, experiência e resultado de negócio.",
+    projectsCarouselHint: "Navegue pelos cases com foco em resultado e stack.",
+    projectsPrevLabel: "Projeto anterior",
+    projectsNextLabel: "Próximo projeto",
+    projectsPrevShort: "Anterior",
+    projectsNextShort: "Próximo",
+    projectsCarouselLabel: "Carrossel de projetos relevantes",
     projectVisitLabel: "Ver projeto",
     projects: [
       {
@@ -64,36 +71,59 @@ window.PORTFOLIO_CONTENT = {
         url: "",
         description:
           "Dashboard responsivo com padronização de componentes e requisições assíncronas para melhorar fluidez e manutenção.",
+        image: "assets/images/projects/cademi-dashboard.svg",
+        imageAlt: "Preview do projeto Dashboard Cademí",
+        tags: ["Laravel", "Blade", "jQuery", "Bootstrap"],
       },
       {
         name: "Pátio Batel",
         url: "https://patiobatel.com.br",
         description:
           "Redesign da homepage em WordPress com Foundation e PHP, guiado por diretrizes de UX.",
+        image: "assets/images/projects/patio-batel-composite.png",
+        imageAlt: "Preview do projeto Pátio Batel",
+        imageMode: "background",
+        tags: ["WordPress", "PHP", "Foundation", "UX"],
       },
       {
         name: "Paraná Banco Investimentos",
         url: "https://paranabancoinvestimentos.com.br",
         description:
           "Projeto em Next.js integrado com WordPress, GTM e CRM, com styled-components e SASS.",
+        image: "assets/images/projects/parana-investimentos-composite.png",
+        imageAlt: "Preview do projeto Paraná Banco Investimentos",
+        imageMode: "background",
+        tags: ["Next.js", "WordPress", "GTM", "CRM"],
       },
       {
         name: "HearBetter - Medel",
         url: "https://hearbetter.medel.com",
         description:
           "Projeto multilíngue de alta complexidade com ACF, WPML e APIs customizadas.",
+        image: "assets/images/projects/hearbetter-composite.png",
+        imageAlt: "Preview do projeto HearBetter - Medel",
+        imageMode: "background",
+        tags: ["WordPress", "WPML", "ACF", "API"],
       },
       {
         name: "ThorBikes",
         url: "https://thorbikes.com.br",
         description:
           "Catálogo integrado via API do ERP Tiny com interface customizada em Foundation, PHP e SASS.",
+        image: "assets/images/projects/thorbikes-composite.png",
+        imageAlt: "Preview do projeto ThorBikes",
+        imageMode: "background",
+        tags: ["ERP Tiny", "API", "PHP", "SASS"],
       },
       {
         name: "Roca Cerâmica",
         url: "https://www.rocaceramica.com.br",
         description:
           "Manutenção contínua em WordPress com melhorias de SEO e evolução de interface.",
+        image: "assets/images/projects/roca-ceramica-composite.png",
+        imageAlt: "Preview do projeto Roca Cerâmica",
+        imageMode: "background",
+        tags: ["WordPress", "SEO", "Front-end", "Manutenção"],
       },
     ],
     sectionExperienceTitle: "Experiência Recente",
@@ -201,6 +231,7 @@ window.PORTFOLIO_CONTENT = {
       "I use AI to accelerate scaffolding, refactoring and technical investigation with human validation in critical decisions.",
     aiPractices: [
       "GitHub Copilot to speed up code scaffolding, refactoring and test scenarios.",
+      "Workflow with Claude Code to plan implementation steps, validate options and reduce rework in complex tasks.",
       "AI assistants for technical debugging, decision documentation and less rework.",
       "Human validation in critical steps to preserve quality, readability and maintainability.",
     ],
@@ -213,9 +244,15 @@ window.PORTFOLIO_CONTENT = {
       "Experience with rich interfaces, API integrations and production content management.",
       "Clear communication in Portuguese and advanced English with active Agile/Scrum collaboration.",
     ],
-    sectionProjectsTitle: "Recent Projects",
+    sectionProjectsTitle: "Relevant Projects",
     sectionProjectsText:
-      "Selected production projects delivered with focus on performance, experience and outcomes.",
+      "Selected relevant deliveries focused on performance, experience and business outcomes.",
+    projectsCarouselHint: "Browse highlighted cases focused on outcomes and stack.",
+    projectsPrevLabel: "Previous project",
+    projectsNextLabel: "Next project",
+    projectsPrevShort: "Previous",
+    projectsNextShort: "Next",
+    projectsCarouselLabel: "Relevant projects carousel",
     projectVisitLabel: "Visit project",
     projects: [
       {
@@ -223,36 +260,59 @@ window.PORTFOLIO_CONTENT = {
         url: "",
         description:
           "Responsive dashboard with standardized components and asynchronous requests to improve maintainability.",
+        image: "assets/images/projects/cademi-dashboard.svg",
+        imageAlt: "Preview of Cademí Dashboard project",
+        tags: ["Laravel", "Blade", "jQuery", "Bootstrap"],
       },
       {
         name: "Pátio Batel",
         url: "https://patiobatel.com.br",
         description:
           "Homepage redesign in WordPress with Foundation and PHP guided by UX directives.",
+        image: "assets/images/projects/patio-batel-composite.png",
+        imageAlt: "Preview of Pátio Batel project",
+        imageMode: "background",
+        tags: ["WordPress", "PHP", "Foundation", "UX"],
       },
       {
         name: "Paraná Banco Investimentos",
         url: "https://paranabancoinvestimentos.com.br",
         description:
           "Next.js project integrated with WordPress, GTM and CRM using styled-components and SASS.",
+        image: "assets/images/projects/parana-investimentos-composite.png",
+        imageAlt: "Preview of Paraná Banco Investimentos project",
+        imageMode: "background",
+        tags: ["Next.js", "WordPress", "GTM", "CRM"],
       },
       {
         name: "HearBetter - Medel",
         url: "https://hearbetter.medel.com",
         description:
           "High-complexity multilingual project using ACF, WPML and custom APIs.",
+        image: "assets/images/projects/hearbetter-composite.png",
+        imageAlt: "Preview of HearBetter - Medel project",
+        imageMode: "background",
+        tags: ["WordPress", "WPML", "ACF", "API"],
       },
       {
         name: "ThorBikes",
         url: "https://thorbikes.com.br",
         description:
           "Catalog integrated with Tiny ERP API and a custom interface built with Foundation, PHP and SASS.",
+        image: "assets/images/projects/thorbikes-composite.png",
+        imageAlt: "Preview of ThorBikes project",
+        imageMode: "background",
+        tags: ["Tiny ERP", "API", "PHP", "SASS"],
       },
       {
         name: "Roca Cerâmica",
         url: "https://www.rocaceramica.com.br",
         description:
           "Ongoing WordPress maintenance with SEO improvements and interface evolution.",
+        image: "assets/images/projects/roca-ceramica-composite.png",
+        imageAlt: "Preview of Roca Cerâmica project",
+        imageMode: "background",
+        tags: ["WordPress", "SEO", "Front-end", "Maintenance"],
       },
     ],
     sectionExperienceTitle: "Recent Experience",
