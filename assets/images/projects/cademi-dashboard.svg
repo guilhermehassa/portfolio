@@ -1,0 +1,11 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1600" y2="900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2148b6" />
+      <stop offset="1" stop-color="#0b1120" />
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)" />
+  <text x="120" y="420" fill="#f8fbff" font-family="Barlow, Arial, sans-serif" font-size="70" font-weight="700">Cademi Dashboard</text>
+  <text x="120" y="500" fill="#b7d0ff" font-family="Barlow, Arial, sans-serif" font-size="34" font-weight="500">Laravel | Blade | jQuery</text>
+</svg>
