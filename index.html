@@ -40,11 +40,12 @@
         </a>
 
         <div class="flex flex-wrap items-center gap-3">
-          <div class="inline-flex rounded-xl border border-slate-300 bg-white/80 p-1 dark:border-slate-700 dark:bg-slate-900/80" role="group" aria-label="Idioma">
+          <div id="language-toggle" class="segmented-toggle" role="group" aria-label="Idioma" data-i18n-aria="languageLabel" data-value="pt-BR">
+            <span class="segmented-indicator" aria-hidden="true"></span>
             <button
               id="lang-pt"
               type="button"
-              class="rounded-lg px-3 py-2 text-xs font-semibold transition"
+              class="segmented-option min-w-[3.9rem]"
               aria-pressed="true"
               data-i18n="languagePt"
             >
@@ -53,7 +54,7 @@
             <button
               id="lang-en"
               type="button"
-              class="rounded-lg px-3 py-2 text-xs font-semibold transition"
+              class="segmented-option min-w-[3.2rem]"
               aria-pressed="false"
               data-i18n="languageEn"
             >
@@ -61,9 +62,37 @@
             </button>
           </div>
 
-          <button id="theme-toggle" type="button" class="btn-secondary text-xs" data-i18n="themeButtonDark">
-            Ativar modo escuro
-          </button>
+          <div id="theme-toggle" class="theme-toggle" role="group" aria-label="Tema" data-i18n-aria="themeLabel" data-theme="light">
+            <button id="theme-light" type="button" class="theme-toggle-option" aria-pressed="true">
+              <span data-i18n="themeLightShort">Claro</span>
+            </button>
+            <button id="theme-dark" type="button" class="theme-toggle-option" aria-pressed="false">
+              <span data-i18n="themeDarkShort">Escuro</span>
+            </button>
+
+            <span class="theme-toggle-knob" aria-hidden="true">
+              <svg class="knob-icon icon-sun" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="2" />
+                <path d="M12 2V5" stroke="currentColor" stroke-width="2" stroke-linecap="square" />
+                <path d="M12 19V22" stroke="currentColor" stroke-width="2" stroke-linecap="square" />
+                <path d="M2 12H5" stroke="currentColor" stroke-width="2" stroke-linecap="square" />
+                <path d="M19 12H22" stroke="currentColor" stroke-width="2" stroke-linecap="square" />
+                <path d="M4.93 4.93L7.05 7.05" stroke="currentColor" stroke-width="2" stroke-linecap="square" />
+                <path d="M16.95 16.95L19.07 19.07" stroke="currentColor" stroke-width="2" stroke-linecap="square" />
+                <path d="M19.07 4.93L16.95 7.05" stroke="currentColor" stroke-width="2" stroke-linecap="square" />
+                <path d="M7.05 16.95L4.93 19.07" stroke="currentColor" stroke-width="2" stroke-linecap="square" />
+              </svg>
+              <svg class="knob-icon icon-moon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M20.5 14.2C19.2 14.8 17.7 15.1 16.2 15.1C10.8 15.1 6.4 10.7 6.4 5.3C6.4 4 6.6 2.7 7.1 1.5C3.6 3 1 6.4 1 10.5C1 15.9 5.4 20.3 10.8 20.3C15.4 20.3 19.3 17.1 20.5 12.8"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="square"
+                  stroke-linejoin="miter"
+                />
+              </svg>
+            </span>
+          </div>
         </div>
       </div>
     </header>
@@ -76,8 +105,6 @@
         data-delay="90"
       >
         <div class="space-y-6">
-          <span class="chip" data-i18n="badge">Disponível para projetos e contratação</span>
-
           <h1 class="font-display text-4xl font-semibold leading-tight text-slate-900 dark:text-slate-100 md:text-5xl" data-i18n="heroTitle">
             Interfaces e soluções web que geram resultado de negócio.
           </h1>
@@ -111,6 +138,15 @@
         <div id="tech-groups" class="grid gap-4 md:grid-cols-2"></div>
       </section>
 
+      <section id="ai-assisted" class="space-y-5" data-animate data-delay="155">
+        <h2 class="section-title" data-i18n="sectionAiTitle">Desenvolvimento Assistido por IA</h2>
+        <p class="section-subtitle" data-i18n="sectionAiText">
+          Uso IA para acelerar entrega com validação humana nas etapas críticas.
+        </p>
+
+        <ul id="ai-list" class="grid gap-3 md:grid-cols-3"></ul>
+      </section>
+
       <section id="areas" class="space-y-5" data-animate data-delay="180">
         <h2 class="section-title" data-i18n="sectionAreasTitle">Área de Atuação</h2>
         <p class="section-subtitle" data-i18n="sectionAreasText">
@@ -118,6 +154,24 @@
         </p>
 
         <ul id="strengths-list" class="grid gap-3 md:grid-cols-2"></ul>
+      </section>
+
+      <section id="projects" class="space-y-5" data-animate data-delay="210">
+        <h2 class="section-title" data-i18n="sectionProjectsTitle">Projetos Recentes</h2>
+        <p class="section-subtitle" data-i18n="sectionProjectsText">
+          Seleção de entregas em produção com foco em performance, experiência e resultado.
+        </p>
+
+        <div id="projects-list" class="grid gap-4 md:grid-cols-2"></div>
+      </section>
+
+      <section id="experience" class="space-y-5" data-animate data-delay="225">
+        <h2 class="section-title" data-i18n="sectionExperienceTitle">Experiência Recente</h2>
+        <p class="section-subtitle" data-i18n="sectionExperienceText">
+          Atuação em produtos digitais, e-commerce e ambientes corporativos com entregas orientadas a negócio.
+        </p>
+
+        <ul id="experience-list" class="grid gap-3 md:grid-cols-2"></ul>
       </section>
 
       <section id="contact" class="glass-panel grid gap-7 p-6 md:grid-cols-[1fr_1.2fr] md:p-8" data-animate data-delay="240">

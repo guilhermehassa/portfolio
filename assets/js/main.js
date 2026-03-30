@@ -4,13 +4,19 @@
   const THEME_KEY = "portfolio.theme";
 
   const techGroupsContainer = document.getElementById("tech-groups");
+  const aiListContainer = document.getElementById("ai-list");
   const strengthsContainer = document.getElementById("strengths-list");
+  const projectsContainer = document.getElementById("projects-list");
+  const experienceContainer = document.getElementById("experience-list");
   const subjectSelect = document.getElementById("subject");
   const contactForm = document.getElementById("contact-form");
   const formStatus = document.getElementById("form-status");
   const submitButton = document.getElementById("form-submit");
   const currentYear = document.getElementById("current-year");
-  const themeToggle = document.getElementById("theme-toggle");
+  const languageToggle = document.getElementById("language-toggle");
+  const themeToggleContainer = document.getElementById("theme-toggle");
+  const themeLightButton = document.getElementById("theme-light");
+  const themeDarkButton = document.getElementById("theme-dark");
   const languagePt = document.getElementById("lang-pt");
   const languageEn = document.getElementById("lang-en");
 
@@ -47,7 +53,7 @@
       localStorage.setItem(THEME_KEY, theme);
     }
 
-    updateThemeButton();
+    updateThemeButtons();
   }
 
   function setLanguage(lang, persist = true) {
@@ -106,6 +112,14 @@
         element.setAttribute("alt", value);
       }
     });
+
+    document.querySelectorAll("[data-i18n-aria]").forEach((element) => {
+      const key = element.getAttribute("data-i18n-aria");
+      const value = resolveValue(copy, key);
+      if (typeof value === "string") {
+        element.setAttribute("aria-label", value);
+      }
+    });
   }
 
   function renderTechGroups() {
@@ -150,6 +164,86 @@
     });
   }
 
+  function renderAiPractices() {
+    const copy = getCurrentCopy();
+    aiListContainer.innerHTML = "";
+
+    copy.aiPractices.forEach((practice) => {
+      const item = document.createElement("li");
+      item.className =
+        "glass-panel border border-slate-200/80 p-5 text-sm leading-relaxed text-slate-700 dark:border-slate-700 dark:text-slate-200";
+      item.textContent = practice;
+      aiListContainer.appendChild(item);
+    });
+  }
+
+  function renderProjects() {
+    const copy = getCurrentCopy();
+    projectsContainer.innerHTML = "";
+
+    copy.projects.forEach((project) => {
+      const card = document.createElement("article");
+      card.className =
+        "glass-panel border border-slate-200/80 p-5 dark:border-slate-700";
+
+      const title = document.createElement("h3");
+      title.className = "font-display text-xl font-semibold text-slate-900 dark:text-slate-100";
+      title.textContent = project.name;
+
+      const description = document.createElement("p");
+      description.className = "mt-3 text-sm leading-relaxed text-slate-700 dark:text-slate-300";
+      description.textContent = project.description;
+
+      card.appendChild(title);
+      card.appendChild(description);
+
+      if (project.url) {
+        const link = document.createElement("a");
+        link.href = project.url;
+        link.target = "_blank";
+        link.rel = "noreferrer";
+        link.className =
+          "mt-4 inline-flex text-sm font-semibold text-brand-700 underline decoration-brand-400 decoration-2 underline-offset-4 transition hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200";
+        link.textContent = copy.projectVisitLabel;
+        card.appendChild(link);
+      }
+
+      projectsContainer.appendChild(card);
+    });
+  }
+
+  function renderExperience() {
+    const copy = getCurrentCopy();
+    experienceContainer.innerHTML = "";
+
+    copy.experiences.forEach((experience) => {
+      const item = document.createElement("li");
+      item.className =
+        "glass-panel border border-slate-200/80 p-5 dark:border-slate-700";
+
+      const header = document.createElement("div");
+      header.className = "flex flex-col gap-1";
+
+      const company = document.createElement("h3");
+      company.className = "font-display text-xl font-semibold text-slate-900 dark:text-slate-100";
+      company.textContent = experience.company;
+
+      const period = document.createElement("p");
+      period.className = "text-xs font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-300";
+      period.textContent = experience.period;
+
+      const summary = document.createElement("p");
+      summary.className = "mt-3 text-sm leading-relaxed text-slate-700 dark:text-slate-300";
+      summary.textContent = experience.summary;
+
+      header.appendChild(company);
+      header.appendChild(period);
+      item.appendChild(header);
+      item.appendChild(summary);
+      experienceContainer.appendChild(item);
+    });
+  }
+
   function renderSubjectOptions() {
     const copy = getCurrentCopy();
     const previousValue = subjectSelect.value;
@@ -166,25 +260,26 @@
     subjectSelect.value = hasPrevious ? previousValue : "custom-project";
   }
 
-  function updateThemeButton() {
+  function updateThemeButtons() {
     const copy = getCurrentCopy();
-    const targetTheme = state.theme === "dark" ? "light" : "dark";
-    const label = targetTheme === "dark" ? copy.themeButtonDark : copy.themeButtonLight;
+    const isLight = state.theme === "light";
 
-    themeToggle.textContent = label;
-    themeToggle.setAttribute("aria-label", label);
+    themeToggleContainer.setAttribute("data-theme", state.theme);
+
+    themeLightButton.classList.toggle("is-active", isLight);
+    themeDarkButton.classList.toggle("is-active", !isLight);
+
+    themeLightButton.setAttribute("aria-pressed", String(isLight));
+    themeDarkButton.setAttribute("aria-pressed", String(!isLight));
+    themeLightButton.setAttribute("aria-label", copy.themeLightLabel);
+    themeDarkButton.setAttribute("aria-label", copy.themeDarkLabel);
   }
 
   function updateLanguageButtons() {
-    languagePt.classList.toggle("bg-brand-700", state.lang === "pt-BR");
-    languagePt.classList.toggle("text-white", state.lang === "pt-BR");
-    languagePt.classList.toggle("text-slate-700", state.lang !== "pt-BR");
-    languagePt.classList.toggle("dark:text-slate-200", state.lang !== "pt-BR");
+    languageToggle.setAttribute("data-value", state.lang);
 
-    languageEn.classList.toggle("bg-brand-700", state.lang === "en");
-    languageEn.classList.toggle("text-white", state.lang === "en");
-    languageEn.classList.toggle("text-slate-700", state.lang !== "en");
-    languageEn.classList.toggle("dark:text-slate-200", state.lang !== "en");
+    languagePt.classList.toggle("is-active", state.lang === "pt-BR");
+    languageEn.classList.toggle("is-active", state.lang === "en");
 
     languagePt.setAttribute("aria-pressed", String(state.lang === "pt-BR"));
     languageEn.setAttribute("aria-pressed", String(state.lang === "en"));
@@ -193,9 +288,12 @@
   function renderPage() {
     renderBindings();
     renderTechGroups();
+    renderAiPractices();
     renderStrengths();
+    renderProjects();
+    renderExperience();
     renderSubjectOptions();
-    updateThemeButton();
+    updateThemeButtons();
     updateLanguageButtons();
   }
 
@@ -279,10 +377,8 @@
   }
 
   function bindEvents() {
-    themeToggle.addEventListener("click", () => {
-      const nextTheme = state.theme === "dark" ? "light" : "dark";
-      setTheme(nextTheme, true);
-    });
+    themeLightButton.addEventListener("click", () => setTheme("light", true));
+    themeDarkButton.addEventListener("click", () => setTheme("dark", true));
 
     languagePt.addEventListener("click", () => setLanguage("pt-BR", true));
     languageEn.addEventListener("click", () => setLanguage("en", true));

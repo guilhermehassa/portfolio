@@ -29,6 +29,110 @@
 }
 
 @layer components {
+  .segmented-toggle {
+    --seg-pad: 0.25rem;
+    --seg-width: 3.9rem;
+    @apply relative inline-grid grid-cols-2 rounded-md border border-slate-300 bg-white/80 p-1 dark:border-slate-700 dark:bg-slate-900/80;
+    padding: var(--seg-pad);
+    grid-template-columns: repeat(2, minmax(var(--seg-width), var(--seg-width)));
+  }
+
+  .segmented-indicator {
+    @apply absolute rounded-md bg-brand-700 shadow-md shadow-brand-900/20;
+    top: var(--seg-pad);
+    bottom: var(--seg-pad);
+    left: var(--seg-pad);
+    width: var(--seg-width);
+    transition: left 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .segmented-toggle[data-value="en"] .segmented-indicator {
+    left: calc(var(--seg-pad) + var(--seg-width));
+  }
+
+  .segmented-option {
+    @apply relative z-10 inline-flex items-center justify-center rounded-md px-3 py-2 text-xs font-semibold text-slate-600 transition-colors duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100 dark:text-slate-300 dark:focus-visible:ring-offset-slate-950;
+    min-width: var(--seg-width);
+  }
+
+  .segmented-option.is-active {
+    @apply text-white;
+  }
+
+  .theme-toggle {
+    --pad: 0.25rem;
+    --segment-width: 5rem;
+    @apply relative inline-grid h-11 w-44 grid-cols-2 rounded-full border border-slate-300 bg-gradient-to-r from-slate-100 to-slate-300 p-1 dark:border-slate-700 dark:from-slate-900 dark:to-slate-700;
+    padding: var(--pad);
+    grid-template-columns: repeat(2, minmax(var(--segment-width), var(--segment-width)));
+  }
+
+  .theme-toggle-option {
+    @apply relative z-10 inline-flex items-center justify-center text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500 transition-colors duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100 dark:text-slate-300 dark:focus-visible:ring-offset-slate-950;
+    min-width: var(--segment-width);
+  }
+
+  .theme-toggle-option.is-active {
+    @apply text-slate-800 dark:text-slate-100;
+  }
+
+  .theme-toggle-knob {
+    @apply pointer-events-none absolute z-0 flex items-center justify-center rounded-full border border-slate-300 bg-white text-slate-500 shadow-md dark:border-slate-500 dark:bg-slate-100;
+    top: var(--pad);
+    left: var(--pad);
+    width: var(--segment-width);
+    height: calc(100% - (var(--pad) * 2));
+    transition: left 340ms cubic-bezier(0.22, 1, 0.36, 1), background-color 280ms ease-out, border-color 280ms ease-out;
+  }
+
+  .theme-toggle[data-theme="dark"] .theme-toggle-knob {
+    left: calc(var(--pad) + var(--segment-width));
+  }
+
+  .theme-toggle[data-theme="dark"] {
+    border-color: rgba(77, 129, 245, 0.45);
+    background-image: linear-gradient(90deg, rgba(9, 18, 38, 0.96) 0%, rgba(24, 45, 94, 0.96) 100%);
+  }
+
+  .theme-toggle[data-theme="dark"] .theme-toggle-option:not(.is-active) {
+    color: rgba(186, 203, 235, 0.78);
+  }
+
+  .theme-toggle[data-theme="dark"] .theme-toggle-option.is-active {
+    color: #f8fbff;
+  }
+
+  .theme-toggle[data-theme="dark"] .theme-toggle-knob {
+    border-color: #4d81f5;
+    background-color: #1d3b8f;
+    color: #dce8ff;
+    box-shadow: 0 6px 18px rgba(2, 6, 23, 0.45), inset 0 0 0 1px rgba(183, 208, 255, 0.18);
+  }
+
+  .knob-icon {
+    @apply hidden;
+  }
+
+  .theme-toggle .icon-sun {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+
+  .theme-toggle .icon-moon {
+    opacity: 0;
+    transform: rotate(-10deg) scale(0.72);
+  }
+
+  .theme-toggle[data-theme="dark"] .icon-sun {
+    opacity: 0;
+    transform: rotate(10deg) scale(0.72);
+  }
+
+  .theme-toggle[data-theme="dark"] .icon-moon {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+
   .glass-panel {
     @apply rounded-lg border border-white/60 bg-white/70 shadow-card backdrop-blur-xl;
   }
