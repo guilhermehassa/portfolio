@@ -641,9 +641,65 @@
     return { isValid: true };
   }
 
+  function extractChallengeCookie(challengeHtml) {
+    if (typeof challengeHtml !== "string" || challengeHtml.length === 0) {
+      return null;
+    }
+
+    const match = challengeHtml.match(/document\.cookie\s*=\s*["']([^"']+)["']/i);
+    if (!match || !match[1]) {
+      return null;
+    }
+
+    return match[1];
+  }
+
+  async function postContact(body) {
+    const makeRequest = () =>
+      fetch("contact.php", {
+        method: "POST",
+        body,
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      });
+
+    let response = await makeRequest();
+    const initialContentType = response.headers.get("content-type") || "";
+
+    if (response.status === 409 && initialContentType.includes("text/html")) {
+      const challengeHtml = await response.text();
+      const cookieValue = extractChallengeCookie(challengeHtml);
+      if (cookieValue) {
+        document.cookie = cookieValue;
+        response = await makeRequest();
+      }
+    }
+
+    let payload = null;
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      try {
+        payload = await response.json();
+      } catch (_error) {
+        payload = null;
+      }
+    }
+
+    return { response, payload };
+  }
+
   async function submitForm(event) {
     event.preventDefault();
     const copy = getCurrentCopy();
+
+    if (window.location.protocol === "file:") {
+      showStatus("error", copy.formLocalProtocolError || copy.formError);
+      return;
+    }
+
     const validation = validateForm(copy);
     if (!validation.isValid) {
       showStatus("error", validation.message);
@@ -654,28 +710,28 @@
     }
 
     const formData = new FormData(contactForm);
+    const body = new URLSearchParams();
+    formData.forEach((value, key) => {
+      body.append(key, typeof value === "string" ? value : "");
+    });
+    const encodedBody = body.toString();
 
     submitButton.disabled = true;
     submitButton.textContent = copy.formSending;
 
     try {
-      const response = await fetch("contact.php", {
-        method: "POST",
-        body: formData,
-        headers: {
-          Accept: "application/json",
-        },
-      });
+      const { response, payload } = await postContact(encodedBody);
 
-      let payload;
-      try {
-        payload = await response.json();
-      } catch (_error) {
-        throw new Error(copy.formError);
+      if (!response.ok) {
+        const httpStatusMessage =
+          response.status === 409
+            ? copy.formTransportError || "Erro de validacao no servidor. Recarregue a pagina e tente novamente."
+            : `Erro no servidor (HTTP ${response.status}).`;
+        throw new Error((payload && payload.message) || httpStatusMessage);
       }
 
-      if (!response.ok || !payload.ok) {
-        throw new Error(payload.message || copy.formError);
+      if (!payload || !payload.ok) {
+        throw new Error((payload && payload.message) || copy.formError);
       }
 
       contactForm.reset();
@@ -685,7 +741,12 @@
       clearFieldState(subjectSelect);
       showStatus("success", payload.message || copy.formSuccess);
     } catch (error) {
-      showStatus("error", error.message || copy.formError);
+      const isNetworkError = error instanceof TypeError;
+      if (isNetworkError) {
+        showStatus("error", copy.formTransportError || copy.formError);
+      } else {
+        showStatus("error", (error && error.message) || copy.formError);
+      }
     } finally {
       submitButton.disabled = false;
       submitButton.textContent = getCurrentCopy().formSubmit;

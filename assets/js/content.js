@@ -222,6 +222,10 @@ window.PORTFOLIO_CONTENT = {
       "Mensagem enviada com sucesso. Retorno em breve pelo contato@hassa.dev.br.",
     formError:
       "Nao foi possivel enviar agora. Tente novamente em instantes ou use contato@hassa.dev.br.",
+    formTransportError:
+      "Erro de conexao ao enviar. Se estiver em visualizacao local, use um servidor HTTP ou teste no dominio publicado.",
+    formLocalProtocolError:
+      "Envio indisponivel em arquivo local (file://). Acesse via http://localhost ou no dominio publicado para enviar o formulario.",
     formValidationName: "Informe seu nome completo.",
     formValidationEmail: "Informe um e-mail valido para retorno.",
     formValidationPhone: "Informe um telefone valido com DDD.",
@@ -445,6 +449,10 @@ window.PORTFOLIO_CONTENT = {
     formSuccess: "Message sent successfully. I will get back soon.",
     formError:
       "Unable to send now. Please try again shortly or email contato@hassa.dev.br.",
+    formTransportError:
+      "Connection error while sending. If you are in local preview, use an HTTP server or test on the published domain.",
+    formLocalProtocolError:
+      "Sending is unavailable in local file mode (file://). Open via http://localhost or the published domain to submit the form.",
     formValidationName: "Please provide your full name.",
     formValidationEmail: "Please provide a valid email address.",
     formValidationPhone: "Please provide a valid phone number with area code.",
