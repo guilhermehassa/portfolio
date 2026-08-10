@@ -1,0 +1,593 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-brand-50: #eef5ff;
+  --color-brand-100: #dce8ff;
+  --color-brand-200: #b7d0ff;
+  --color-brand-300: #85adff;
+  --color-brand-400: #4d81f5;
+  --color-brand-500: #2f5dda;
+  --color-brand-600: #2148b6;
+  --color-brand-700: #1d3b8f;
+  --color-brand-800: #1f346f;
+  --color-brand-900: #0f1b36;
+
+  --shadow-card: 0 14px 40px rgba(15, 27, 54, 0.14);
+
+  --animate-fade-up: fade-up 0.7s ease-out forwards;
+  --animate-pulse-soft: pulseSoft 4s ease-in-out infinite;
+}
+
+@keyframes fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseSoft {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* next/font exposes --font-barlow / --font-barlow-condensed via `variable` on <html>.
+   @theme inline is required when a token's value is itself a var() reference. */
+@theme inline {
+  --font-body: var(--font-barlow);
+  --font-display: var(--font-barlow-condensed);
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply min-h-screen bg-slate-100 text-slate-900 antialiased transition-colors duration-300;
+    background-image:
+      radial-gradient(circle at 10% 10%, rgba(33, 72, 182, 0.1), transparent 42%),
+      radial-gradient(circle at 88% 18%, rgba(15, 27, 54, 0.09), transparent 34%),
+      linear-gradient(180deg, #f8fafc 0%, #eef2ff 55%, #e2e8f0 100%);
+  }
+
+  .dark body {
+    @apply bg-slate-950 text-slate-100;
+    background-image:
+      radial-gradient(circle at 12% 10%, rgba(77, 129, 245, 0.18), transparent 38%),
+      radial-gradient(circle at 84% 24%, rgba(15, 27, 54, 0.24), transparent 32%),
+      linear-gradient(180deg, #020617 0%, #0b1120 55%, #111827 100%);
+  }
+}
+
+@layer components {
+  .segmented-toggle {
+    --seg-pad: 0.25rem;
+    --seg-width: 3.9rem;
+    @apply relative inline-grid grid-cols-2 rounded-md border border-slate-300 bg-white/80 p-1 dark:border-slate-700 dark:bg-slate-900/80;
+    padding: var(--seg-pad);
+    grid-template-columns: repeat(2, minmax(var(--seg-width), var(--seg-width)));
+  }
+
+  .segmented-indicator {
+    @apply absolute rounded-md bg-brand-700 shadow-md shadow-brand-900/20;
+    top: var(--seg-pad);
+    bottom: var(--seg-pad);
+    left: var(--seg-pad);
+    width: var(--seg-width);
+    transition: left 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .segmented-toggle[data-value="en"] .segmented-indicator {
+    left: calc(var(--seg-pad) + var(--seg-width));
+  }
+
+  .segmented-option {
+    @apply relative z-10 inline-flex items-center justify-center rounded-md px-3 py-2 text-xs font-semibold text-slate-600 transition-colors duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100 dark:text-slate-300 dark:focus-visible:ring-offset-slate-950;
+    min-width: var(--seg-width);
+  }
+
+  .segmented-option.is-active {
+    @apply text-white;
+  }
+
+  .theme-toggle {
+    --pad: 0.25rem;
+    --segment-width: 5rem;
+    @apply relative inline-grid h-11 w-44 grid-cols-2 rounded-full border border-slate-300 bg-gradient-to-r from-slate-100 to-slate-300 p-1 dark:border-slate-700 dark:from-slate-900 dark:to-slate-700;
+    padding: var(--pad);
+    grid-template-columns: repeat(2, minmax(var(--segment-width), var(--segment-width)));
+  }
+
+  .theme-toggle-option {
+    @apply relative z-10 inline-flex items-center justify-center text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500 transition-colors duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100 dark:text-slate-300 dark:focus-visible:ring-offset-slate-950;
+    min-width: var(--segment-width);
+  }
+
+  .theme-toggle-option.is-active {
+    @apply text-slate-800 dark:text-slate-100;
+  }
+
+  .theme-toggle-knob {
+    @apply pointer-events-none absolute z-0 flex items-center justify-center rounded-full border border-slate-300 bg-white text-slate-500 shadow-md dark:border-slate-500 dark:bg-slate-100;
+    top: var(--pad);
+    left: var(--pad);
+    width: var(--segment-width);
+    height: calc(100% - (var(--pad) * 2));
+    transition:
+      left 340ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 280ms ease-out,
+      border-color 280ms ease-out;
+  }
+
+  .dark .theme-toggle .theme-toggle-knob {
+    left: calc(var(--pad) + var(--segment-width));
+  }
+
+  .dark .theme-toggle {
+    border-color: rgba(77, 129, 245, 0.45);
+    background-image: linear-gradient(90deg, rgba(9, 18, 38, 0.96) 0%, rgba(24, 45, 94, 0.96) 100%);
+  }
+
+  /* Structural (:first-child/:last-child) rather than .is-active-based: the
+     option order never changes (light option first, dark option second), and
+     driving color purely off the .dark ancestor keeps this correct on the
+     very first paint. The .is-active class is set from React state, which
+     only settles into place after hydration — see theme-provider.tsx. */
+  .dark .theme-toggle .theme-toggle-option:first-child {
+    color: rgba(186, 203, 235, 0.78);
+  }
+
+  .dark .theme-toggle .theme-toggle-option:last-child {
+    color: #f8fbff;
+  }
+
+  .dark .theme-toggle .theme-toggle-knob {
+    border-color: #4d81f5;
+    background-color: #1d3b8f;
+    color: #dce8ff;
+    box-shadow:
+      0 6px 18px rgba(2, 6, 23, 0.45),
+      inset 0 0 0 1px rgba(183, 208, 255, 0.18);
+  }
+
+  .knob-icon {
+    @apply hidden;
+  }
+
+  .theme-toggle .icon-sun {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+
+  .theme-toggle .icon-moon {
+    opacity: 0;
+    transform: rotate(-10deg) scale(0.72);
+  }
+
+  .dark .theme-toggle .icon-sun {
+    opacity: 0;
+    transform: rotate(10deg) scale(0.72);
+  }
+
+  .dark .theme-toggle .icon-moon {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+
+  .glass-panel {
+    @apply rounded-lg border border-white/60 bg-white/70 shadow-card backdrop-blur-xl;
+  }
+
+  .dark .glass-panel {
+    @apply border-slate-700/80 bg-slate-900/70;
+  }
+
+  .section-title {
+    @apply font-display text-3xl font-semibold leading-tight tracking-tight text-brand-900 md:text-4xl;
+  }
+
+  .dark .section-title {
+    @apply text-brand-100;
+  }
+
+  .section-subtitle {
+    @apply max-w-3xl text-base text-slate-600 md:text-lg;
+  }
+
+  .dark .section-subtitle {
+    @apply text-slate-300;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-md bg-brand-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100;
+  }
+
+  .dark .btn-primary {
+    @apply focus-visible:ring-offset-slate-950;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-md border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-brand-300 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100;
+  }
+
+  .dark .btn-secondary {
+    @apply border-slate-600 text-slate-200 hover:border-brand-500 hover:text-brand-200 focus-visible:ring-offset-slate-950;
+  }
+
+  .chip {
+    @apply inline-flex items-center rounded-md border border-brand-200/80 bg-brand-50 px-3 py-1 text-xs font-medium uppercase tracking-wide text-brand-800;
+  }
+
+  .dark .chip {
+    @apply border-brand-800 bg-brand-900/50 text-brand-100;
+  }
+
+  .field-label {
+    @apply mb-2 block text-sm font-medium text-slate-700;
+  }
+
+  .dark .field-label {
+    @apply text-slate-200;
+  }
+
+  .field-input {
+    @apply w-full rounded-md border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-200;
+  }
+
+  .dark .field-input {
+    @apply border-slate-700 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus:border-brand-400 focus:ring-brand-800;
+  }
+}
+
+[data-animate] {
+  opacity: 1;
+  transform: none;
+}
+
+.js [data-animate] {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.7s ease-out,
+    transform 0.7s ease-out;
+}
+
+.js [data-animate].is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ---------------------------------------------------------------------
+   Ported from the legacy assets/css/overrides.css, kept deliberately
+   UNLAYERED (no @layer wrapper). Tailwind v4 compiles @layer blocks to
+   real CSS cascade layers, and any unlayered rule outranks every named
+   layer regardless of source order. The legacy site relied on this file
+   loading after input.css to win cascade ties (e.g. the plain
+   .dark .theme-toggle gradient below vs. the @layer
+   components version above) — staying unlayered reproduces that
+   winner automatically instead of depending on rule order in this file.
+   --------------------------------------------------------------------- */
+.projects-carousel {
+  width: 100%;
+}
+.projects-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.projects-hint {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #475569;
+}
+.projects-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.projects-timer {
+  position: relative;
+  display: inline-flex;
+  height: 1.7rem;
+  width: 1.7rem;
+  align-items: center;
+  justify-content: center;
+}
+.projects-timer-ring {
+  height: 100%;
+  width: 100%;
+  transform: rotate(-90deg);
+}
+.projects-timer-track {
+  fill: none;
+  stroke: rgba(148, 163, 184, 0.6);
+  stroke-width: 2.5;
+}
+.projects-timer-progress {
+  fill: none;
+  stroke: #4d81f5;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 100 100;
+  stroke-dashoffset: 100;
+  transition: stroke-dashoffset 0.1s linear;
+}
+.projects-control-btn {
+  border-radius: 0.6rem;
+  border: 1px solid rgba(203, 213, 225, 0.8);
+  background: rgba(248, 250, 252, 0.7);
+  padding: 0.4rem 0.85rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #1f346f;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.projects-control-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(133, 173, 255, 0.8);
+  box-shadow: 0 10px 18px rgba(15, 27, 54, 0.12);
+}
+.projects-control-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+.projects-swiper {
+  width: 100%;
+  padding-bottom: 0.25rem;
+}
+.projects-swiper .swiper-wrapper {
+  align-items: stretch;
+}
+.project-slide {
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid rgba(203, 213, 225, 0.7);
+  background: rgba(248, 250, 252, 0.8);
+}
+.project-media {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background-color: rgba(226, 232, 240, 0.75);
+}
+.project-media.has-background {
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+.project-image {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+}
+.project-image--hidden {
+  opacity: 0;
+}
+.project-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+}
+.project-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+.project-description {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #475569;
+}
+.project-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.project-chip {
+  border-radius: 0.5rem;
+  border: 1px solid rgba(183, 208, 255, 0.7);
+  background: rgba(238, 245, 255, 0.7);
+  padding: 0.2rem 0.6rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #1f346f;
+}
+.project-link {
+  margin-top: auto;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #1d3b8f;
+}
+.project-link:hover {
+  text-decoration: underline;
+}
+.projects-dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+.projects-dot {
+  height: 0.55rem;
+  width: 0.55rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(148, 163, 184, 0.7);
+  background: rgba(226, 232, 240, 0.75);
+  transition:
+    transform 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+.projects-dot.is-active {
+  transform: scale(1.2);
+  border-color: #4d81f5;
+  background: #4d81f5;
+}
+.dark .projects-hint {
+  color: #cbd5e1;
+}
+.dark .projects-control-btn {
+  border-color: rgba(51, 65, 85, 0.9);
+  background: rgba(15, 23, 42, 0.7);
+  color: #dce8ff;
+}
+.dark .projects-control-btn:hover {
+  border-color: rgba(77, 129, 245, 0.7);
+  box-shadow: 0 10px 18px rgba(2, 6, 23, 0.45);
+}
+.dark .project-slide {
+  border-color: rgba(51, 65, 85, 0.9);
+  background: rgba(15, 23, 42, 0.7);
+}
+.dark .project-media {
+  background-color: rgba(30, 41, 59, 0.8);
+}
+.dark .project-title {
+  color: #f8fafc;
+}
+.dark .project-description {
+  color: #cbd5e1;
+}
+.dark .project-chip {
+  border-color: rgba(31, 52, 111, 0.9);
+  background: rgba(15, 27, 54, 0.55);
+  color: #dce8ff;
+}
+.dark .project-link {
+  color: #93c5fd;
+}
+.dark .projects-timer-track {
+  stroke: rgba(71, 85, 105, 0.8);
+}
+.dark .projects-timer-progress {
+  stroke: #93c5fd;
+}
+.dark .projects-dot {
+  border-color: rgba(71, 85, 105, 0.9);
+  background: rgba(51, 65, 85, 0.7);
+}
+.dark .projects-dot.is-active {
+  border-color: #93c5fd;
+  background: #93c5fd;
+}
+.tech-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.tech-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(183, 208, 255, 0.7);
+  background-color: rgba(238, 245, 255, 0.7);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #1f346f;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.tech-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(15, 27, 54, 0.12);
+}
+.tech-icon {
+  height: 16px;
+  width: 16px;
+  opacity: 0.9;
+  filter: none;
+}
+.tech-initials {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  width: 16px;
+  border-radius: 9999px;
+  background: rgba(29, 59, 143, 0.12);
+  font-size: 9px;
+  font-weight: 700;
+  color: #1f346f;
+}
+.dark .tech-chip {
+  border-color: rgba(31, 52, 111, 0.9);
+  background-color: rgba(15, 27, 54, 0.55);
+  color: #dce8ff;
+}
+.dark .tech-icon {
+  opacity: 0.9;
+}
+.dark .tech-icon[data-dark-invert="true"] {
+  filter: invert(1) brightness(1.1);
+}
+.dark .tech-initials {
+  background: rgba(183, 208, 255, 0.14);
+  color: #dce8ff;
+}
+
+.segmented-toggle,
+.segmented-indicator,
+.segmented-option,
+.theme-toggle,
+.theme-toggle-knob,
+.theme-toggle-option {
+  border-radius: 0.375rem;
+}
+
+.theme-toggle {
+  width: calc(var(--segment-width) * 2 + var(--pad) * 2);
+}
+
+.dark .theme-toggle {
+  background-image: linear-gradient(90deg, rgba(32, 58, 120, 0.92) 0%, rgba(9, 18, 38, 0.98) 100%);
+}
+
+.field-input.is-invalid {
+  border-color: #fda4af;
+  box-shadow: 0 0 0 2px rgba(253, 164, 175, 0.35);
+}
+
+.dark .field-input.is-invalid {
+  border-color: #fda4af;
+  box-shadow: 0 0 0 2px rgba(225, 29, 72, 0.3);
+}

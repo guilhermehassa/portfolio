@@ -1,4 +1,102 @@
-window.PORTFOLIO_CONTENT = {
+export type Locale = "pt-BR" | "en";
+
+export interface TechItem {
+  name: string;
+  icon?: string;
+}
+
+export interface TechGroup {
+  title: string;
+  items: TechItem[];
+}
+
+export interface Project {
+  name: string;
+  url: string;
+  description: string;
+  image: string;
+  imageAlt: string;
+  /** Kept for fidelity with the original data shape; not read by any component. */
+  imageMode?: "background";
+  tags: string[];
+}
+
+export interface Experience {
+  company: string;
+  period: string;
+  summary: string;
+}
+
+export interface LocaleContent {
+  langCode: string;
+  pageTitle: string;
+  pageDescription: string;
+  brand: string;
+  role: string;
+  heroTitle: string;
+  heroText: string;
+  ctaPrimary: string;
+  ctaSecondary: string;
+  portraitAlt: string;
+  sectionTechTitle: string;
+  sectionTechText: string;
+  techGroups: TechGroup[];
+  sectionAiTitle: string;
+  sectionAiText: string;
+  aiPractices: string[];
+  /** Section not currently rendered (dropped from the layout upstream); data kept for fidelity. */
+  sectionAreasTitle: string;
+  sectionAreasText: string;
+  strengths: string[];
+  sectionProjectsTitle: string;
+  sectionProjectsText: string;
+  projectsCarouselHint: string;
+  projectsPrevLabel: string;
+  projectsNextLabel: string;
+  projectsPrevShort: string;
+  projectsNextShort: string;
+  projectsCarouselLabel: string;
+  projectVisitLabel: string;
+  projects: Project[];
+  /** Section not currently rendered (dropped from the layout upstream); data kept for fidelity. */
+  sectionExperienceTitle: string;
+  sectionExperienceText: string;
+  experiences: Experience[];
+  sectionContactTitle: string;
+  sectionContactText: string;
+  channelsLabel: string;
+  languageLabel: string;
+  themeLabel: string;
+  themeLightLabel: string;
+  themeDarkLabel: string;
+  themeLightShort: string;
+  themeDarkShort: string;
+  languagePt: string;
+  languageEn: string;
+  formNameLabel: string;
+  formNamePlaceholder: string;
+  formEmailLabel: string;
+  formEmailPlaceholder: string;
+  formPhoneLabel: string;
+  formPhonePlaceholder: string;
+  formSubjectLabel: string;
+  formSubmit: string;
+  formSending: string;
+  subjectOptions: Record<string, string>;
+  formSuccess: string;
+  formError: string;
+  formTransportError: string;
+  formLocalProtocolError: string;
+  /** Fallback: build sem NEXT_PUBLIC_CONTACT_ENDPOINT, sem Worker para chamar. */
+  formStubNotice: string;
+  formValidationName: string;
+  formValidationEmail: string;
+  formValidationPhone: string;
+  formValidationSubject: string;
+  footerText: string;
+}
+
+export const PORTFOLIO_CONTENT: Record<Locale, LocaleContent> = {
   "pt-BR": {
     langCode: "pt-BR",
     pageTitle: "Guilherme Hassã - Desenvolvedor Web",
@@ -93,8 +191,7 @@ window.PORTFOLIO_CONTENT = {
       "Inglês avançado e experiência em Agile/Scrum; disponível para times nacionais e internacionais.",
     ],
     sectionProjectsTitle: "Projetos Relevantes",
-    sectionProjectsText:
-      "Projetos relevantes que atuei durante minha carreira.",
+    sectionProjectsText: "Projetos relevantes que atuei durante minha carreira.",
     projectsCarouselHint: "",
     projectsPrevLabel: "Projeto anterior",
     projectsNextLabel: "Próximo projeto",
@@ -108,7 +205,7 @@ window.PORTFOLIO_CONTENT = {
         url: "https://patiobatel.com.br",
         description:
           "Redesign da homepage orientado a UX para aumentar engajamento e conversão. Desenvolvido em WordPress com Foundation e PHP.",
-        image: "assets/images/projects/patio-batel-composite.png",
+        image: "/images/projects/patio-batel-composite.png",
         imageAlt: "Preview do projeto Pátio Batel",
         imageMode: "background",
         tags: ["WordPress", "PHP", "Foundation", "UX"],
@@ -118,7 +215,7 @@ window.PORTFOLIO_CONTENT = {
         url: "https://paranabancoinvestimentos.com.br",
         description:
           "Frontend em Next.js com styled-components e SASS, integrado a WordPress, GTM e CRM para aquisição digital.",
-        image: "assets/images/projects/parana-investimentos-composite.png",
+        image: "/images/projects/parana-investimentos-composite.png",
         imageAlt: "Preview do projeto Paraná Banco Investimentos",
         imageMode: "background",
         tags: ["Next.js", "WordPress", "GTM", "CRM"],
@@ -128,7 +225,7 @@ window.PORTFOLIO_CONTENT = {
         url: "https://hearbetter.medel.com",
         description:
           "Plataforma multilíngue de alta complexidade para marca global de saúde auditiva, com ACF, WPML e APIs customizadas.",
-        image: "assets/images/projects/hearbetter-composite.png",
+        image: "/images/projects/hearbetter-composite.png",
         imageAlt: "Preview do projeto HearBetter - Medel",
         imageMode: "background",
         tags: ["WordPress", "WPML", "ACF", "API"],
@@ -138,7 +235,7 @@ window.PORTFOLIO_CONTENT = {
         url: "https://thorbikes.com.br",
         description:
           "Catálogo com centenas de produtos integrado via API do ERP Tiny, com interface customizada em Foundation, PHP e SASS.",
-        image: "assets/images/projects/thorbikes-composite.png",
+        image: "/images/projects/thorbikes-composite.png",
         imageAlt: "Preview do projeto ThorBikes",
         imageMode: "background",
         tags: ["ERP Tiny", "API", "PHP", "SASS"],
@@ -148,7 +245,7 @@ window.PORTFOLIO_CONTENT = {
         url: "https://www.rocaceramica.com.br",
         description:
           "Evolução contínua do site WordPress com ganhos de SEO técnico e melhoria de experiência de navegação.",
-        image: "assets/images/projects/roca-ceramica-composite.png",
+        image: "/images/projects/roca-ceramica-composite.png",
         imageAlt: "Preview do projeto Roca Cerâmica",
         imageMode: "background",
         tags: ["WordPress", "SEO", "Front-end", "Manutenção"],
@@ -158,7 +255,7 @@ window.PORTFOLIO_CONTENT = {
         url: "",
         description:
           "Dashboard SaaS responsivo com componentes padronizados e requisições assíncronas para reduzir carregamento de página.",
-        image: "assets/images/projects/cademi-dashboard.svg",
+        image: "/images/projects/cademi-dashboard.svg",
         imageAlt: "Preview do projeto Dashboard Cademí",
         tags: ["Laravel", "Blade", "jQuery", "Bootstrap"],
       },
@@ -218,14 +315,15 @@ window.PORTFOLIO_CONTENT = {
       freelance: "Freelance sob demanda",
       hiring: "Contratação para time",
     },
-    formSuccess:
-      "Mensagem enviada com sucesso. Retorno em breve pelo contato@hassa.dev.br.",
+    formSuccess: "Mensagem enviada com sucesso. Retorno em breve pelo contato@hassa.dev.br.",
     formError:
       "Nao foi possivel enviar agora. Tente novamente em instantes ou use contato@hassa.dev.br.",
     formTransportError:
       "Erro de conexao ao enviar. Se estiver em visualizacao local, use um servidor HTTP ou teste no dominio publicado.",
     formLocalProtocolError:
       "Envio indisponivel em arquivo local (file://). Acesse via http://localhost ou no dominio publicado para enviar o formulario.",
+    formStubNotice:
+      "Formulário validado. O envio automático ainda não está ativo nesta versão — escreva para contato@hassa.dev.br.",
     formValidationName: "Informe seu nome completo.",
     formValidationEmail: "Informe um e-mail valido para retorno.",
     formValidationPhone: "Informe um telefone valido com DDD.",
@@ -321,8 +419,7 @@ window.PORTFOLIO_CONTENT = {
       "Advanced English and Agile/Scrum experience; available for national and international teams.",
     ],
     sectionProjectsTitle: "Relevant Projects",
-    sectionProjectsText:
-      "Relevant projects I worked on throughout my career.",
+    sectionProjectsText: "Relevant projects I worked on throughout my career.",
     projectsCarouselHint: "",
     projectsPrevLabel: "Previous project",
     projectsNextLabel: "Next project",
@@ -336,7 +433,7 @@ window.PORTFOLIO_CONTENT = {
         url: "https://patiobatel.com.br",
         description:
           "UX-driven homepage redesign to boost engagement and conversion, built with WordPress, Foundation and PHP.",
-        image: "assets/images/projects/patio-batel-composite.png",
+        image: "/images/projects/patio-batel-composite.png",
         imageAlt: "Preview of Pátio Batel project",
         imageMode: "background",
         tags: ["WordPress", "PHP", "Foundation", "UX"],
@@ -346,7 +443,7 @@ window.PORTFOLIO_CONTENT = {
         url: "https://paranabancoinvestimentos.com.br",
         description:
           "Next.js frontend with styled-components and SASS, integrated with WordPress, GTM and CRM for digital acquisition.",
-        image: "assets/images/projects/parana-investimentos-composite.png",
+        image: "/images/projects/parana-investimentos-composite.png",
         imageAlt: "Preview of Paraná Banco Investimentos project",
         imageMode: "background",
         tags: ["Next.js", "WordPress", "GTM", "CRM"],
@@ -356,7 +453,7 @@ window.PORTFOLIO_CONTENT = {
         url: "https://hearbetter.medel.com",
         description:
           "High-complexity multilingual platform for a global hearing health brand, using ACF, WPML and custom APIs.",
-        image: "assets/images/projects/hearbetter-composite.png",
+        image: "/images/projects/hearbetter-composite.png",
         imageAlt: "Preview of HearBetter - Medel project",
         imageMode: "background",
         tags: ["WordPress", "WPML", "ACF", "API"],
@@ -366,7 +463,7 @@ window.PORTFOLIO_CONTENT = {
         url: "https://thorbikes.com.br",
         description:
           "Product catalog with hundreds of SKUs integrated via Tiny ERP API, with a custom interface in Foundation, PHP and SASS.",
-        image: "assets/images/projects/thorbikes-composite.png",
+        image: "/images/projects/thorbikes-composite.png",
         imageAlt: "Preview of ThorBikes project",
         imageMode: "background",
         tags: ["Tiny ERP", "API", "PHP", "SASS"],
@@ -376,7 +473,7 @@ window.PORTFOLIO_CONTENT = {
         url: "https://www.rocaceramica.com.br",
         description:
           "Ongoing WordPress evolution with technical SEO gains and improved navigation experience.",
-        image: "assets/images/projects/roca-ceramica-composite.png",
+        image: "/images/projects/roca-ceramica-composite.png",
         imageAlt: "Preview of Roca Cerâmica project",
         imageMode: "background",
         tags: ["WordPress", "SEO", "Front-end", "Maintenance"],
@@ -386,7 +483,7 @@ window.PORTFOLIO_CONTENT = {
         url: "",
         description:
           "Responsive SaaS dashboard with standardized components and async requests to cut page load and improve maintainability.",
-        image: "assets/images/projects/cademi-dashboard.svg",
+        image: "/images/projects/cademi-dashboard.svg",
         imageAlt: "Preview of Cademí Dashboard project",
         tags: ["Laravel", "Blade", "jQuery", "Bootstrap"],
       },
@@ -447,12 +544,13 @@ window.PORTFOLIO_CONTENT = {
       hiring: "Hiring for a team",
     },
     formSuccess: "Message sent successfully. I will get back soon.",
-    formError:
-      "Unable to send now. Please try again shortly or email contato@hassa.dev.br.",
+    formError: "Unable to send now. Please try again shortly or email contato@hassa.dev.br.",
     formTransportError:
       "Connection error while sending. If you are in local preview, use an HTTP server or test on the published domain.",
     formLocalProtocolError:
       "Sending is unavailable in local file mode (file://). Open via http://localhost or the published domain to submit the form.",
+    formStubNotice:
+      "Form validated. Automatic sending isn't live in this build yet — please email contato@hassa.dev.br.",
     formValidationName: "Please provide your full name.",
     formValidationEmail: "Please provide a valid email address.",
     formValidationPhone: "Please provide a valid phone number with area code.",

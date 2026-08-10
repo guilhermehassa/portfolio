@@ -1,0 +1,37 @@
+name = "hassa-contact"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+
+# Dominio proprio para o endpoint do formulario. O Cloudflare cria e gerencia o
+# registro DNS de `api.hassa.dev.br` sozinho (proxied) ao publicar o Worker.
+#
+# IMPORTANTE: isso NAO afeta o apex. `hassa.dev.br` e `www` continuam em
+# "Somente DNS" (nuvem cinza), que e o que permite o Caddy da VPS emitir o
+# certificado TLS. Ligar o proxy no apex quebraria a emissao.
+routes = [
+  { pattern = "api.hassa.dev.br", custom_domain = true }
+]
+
+[vars]
+# Origem autorizada a chamar este Worker (checagem de CORS).
+ALLOWED_ORIGIN = "https://hassa.dev.br"
+# Destino das mensagens. Recebe via Cloudflare Email Routing, que encaminha
+# para o Gmail. Para entregar direto no Gmail, basta trocar este valor.
+CONTACT_TO = "contato@hassa.dev.br"
+# Remetente. PRECISA ser de um dominio autenticado (DKIM) no Brevo, senao a
+# mensagem cai em spam ou e recusada.
+CONTACT_FROM = "no-reply@hassa.dev.br"
+CONTACT_FROM_NAME = "Portfolio hassa.dev.br"
+
+# Secret (NAO vai no arquivo): a chave da API HTTP do Brevo.
+#   npx wrangler secret put BREVO_API_KEY
+# Nao confunda com as credenciais SMTP do Agendarium: sao coisas diferentes.
+
+# Rate limit por IP, opcional. Sem Turnstile, isto e o que impede um bot de
+# queimar a cota diaria do Brevo. O codigo funciona com ou sem o binding.
+# Para ativar, descomente as 5 linhas abaixo e publique de novo.
+# [[unsafe.bindings]]
+# name = "RATE_LIMITER"
+# type = "ratelimit"
+# namespace_id = "1001"
+# simple = { limit = 5, period = 60 }

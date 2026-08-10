@@ -1,0 +1,101 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+# Um deploy por vez: dois rsync simultaneos no mesmo diretorio deixariam o
+# site num estado misturado entre dois builds.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build e publica na VPS
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        env:
+          # Embutida no bundle em tempo de build. Se a variavel nao existir, o
+          # site sobe e o formulario mostra o aviso de "escreva no e-mail".
+          NEXT_PUBLIC_CONTACT_ENDPOINT: ${{ vars.NEXT_PUBLIC_CONTACT_ENDPOINT }}
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: npm run build
+
+      - name: Check deploy secrets
+        id: deploy_secrets
+        env:
+          VPS_SSH_HOST: ${{ secrets.VPS_SSH_HOST }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+          VPS_SSH_USER: ${{ secrets.VPS_SSH_USER }}
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_SITE_PATH: ${{ secrets.VPS_SITE_PATH }}
+        run: |
+          if [ -z "$VPS_SSH_HOST" ] || [ -z "$VPS_SSH_PORT" ] || [ -z "$VPS_SSH_USER" ] || [ -z "$VPS_SSH_PRIVATE_KEY" ] || [ -z "$VPS_SITE_PATH" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Deploy pulado: os secrets da VPS ainda nao foram configurados."
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy over SSH
+        if: steps.deploy_secrets.outputs.ready == 'true'
+        env:
+          VPS_SSH_HOST: ${{ secrets.VPS_SSH_HOST }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+          VPS_SSH_USER: ${{ secrets.VPS_SSH_USER }}
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_SITE_PATH: ${{ secrets.VPS_SITE_PATH }}
+        run: |
+          set -euo pipefail
+
+          # Guarda-corpo do --delete: com um destino vazio ou "/", o rsync
+          # apagaria a VPS inteira. Prefixo obrigatorio + profundidade minima.
+          case "$VPS_SITE_PATH" in
+            /opt/sites/?*) : ;;
+            *) echo "VPS_SITE_PATH inesperado; esperado algo sob /opt/sites/. Abortando."; exit 1 ;;
+          esac
+
+          if [ ! -f out/index.html ]; then
+            echo "out/index.html nao existe - o build nao gerou o export. Abortando."
+            exit 1
+          fi
+
+          key_file="$(mktemp "$RUNNER_TEMP/vps_ssh_key.XXXXXX")"
+          trap 'rm -f "$key_file"' EXIT
+          # Chaves OpenSSH exigem newline final; printf garante isso.
+          printf '%s\n' "$VPS_SSH_PRIVATE_KEY" > "$key_file"
+          chmod 600 "$key_file"
+
+          ssh_opts="-i $key_file -p $VPS_SSH_PORT -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+
+          # Garante o diretorio antes do rsync: no primeiro deploy ele nao existe.
+          ssh $ssh_opts "$VPS_SSH_USER@$VPS_SSH_HOST" "mkdir -p '$VPS_SITE_PATH'"
+
+          # A barra final em out/ copia o CONTEUDO, nao a pasta. --delete remove
+          # da VPS o que saiu do build (senao acumula lixo de versoes antigas).
+          rsync -az --delete \
+            -e "ssh $ssh_opts" \
+            out/ "$VPS_SSH_USER@$VPS_SSH_HOST:$VPS_SITE_PATH/"
+
+          echo "Publicado em $VPS_SITE_PATH"
