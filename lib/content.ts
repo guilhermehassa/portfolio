@@ -21,6 +21,40 @@ export interface Project {
   tags: string[];
 }
 
+/** Card de pratica (titulo + explicacao) usado nas secoes de IA e de entrega. */
+export interface PracticeItem {
+  title: string;
+  text: string;
+}
+
+export interface OwnProjectHighlight {
+  title: string;
+  text: string;
+}
+
+export interface OwnProjectStat {
+  value: string;
+  label: string;
+}
+
+/** Produto autoral: sem repositorio (codigo privado), so link, logo e resumo. */
+export interface OwnProject {
+  name: string;
+  url: string;
+  /** Dominio exibido no CTA, sem protocolo. */
+  urlLabel: string;
+  logo: string;
+  logoAlt: string;
+  /** Linha curta acima da tagline (natureza do produto, forma de construcao). */
+  meta: string;
+  tagline: string;
+  summary: string;
+  stack: string[];
+  highlightsTitle: string;
+  highlights: OwnProjectHighlight[];
+  stats: OwnProjectStat[];
+}
+
 export interface Experience {
   company: string;
   period: string;
@@ -43,7 +77,14 @@ export interface LocaleContent {
   techGroups: TechGroup[];
   sectionAiTitle: string;
   sectionAiText: string;
-  aiPractices: string[];
+  aiPractices: PracticeItem[];
+  sectionDeliveryTitle: string;
+  sectionDeliveryText: string;
+  deliveryPipelineLabel: string;
+  deliveryPipeline: string[];
+  deliveryPractices: PracticeItem[];
+  deliveryProfileLabel: string;
+  deliveryProfile: string[];
   /** Section not currently rendered (dropped from the layout upstream); data kept for fidelity. */
   sectionAreasTitle: string;
   sectionAreasText: string;
@@ -58,6 +99,10 @@ export interface LocaleContent {
   projectsCarouselLabel: string;
   projectVisitLabel: string;
   projects: Project[];
+  sectionOwnProjectsTitle: string;
+  sectionOwnProjectsText: string;
+  ownProjectVisitLabel: string;
+  ownProjects: OwnProject[];
   /** Section not currently rendered (dropped from the layout upstream); data kept for fidelity. */
   sectionExperienceTitle: string;
   sectionExperienceText: string;
@@ -172,14 +217,80 @@ export const PORTFOLIO_CONTENT: Record<Locale, LocaleContent> = {
         ],
       },
     ],
-    sectionAiTitle: "Desenvolvimento Assistido por IA",
+    sectionAiTitle: "Desenvolvimento com IA",
     sectionAiText:
-      "Atuando cada vez mais com desenvolvimento assistido por IA. Atuar dessa forma proporciona projetos cada vez melhores, entregas cada vez mais rápidas e assertivas. Além de permitir entrega com cobertura de testes e validações cada vez mais abrangentes.",
+      "IA como parte do processo de engenharia, não como gerador de código avulso: ferramental versionado no repositório, contexto controlado e revisão humana antes do merge.",
     aiPractices: [
-      "GitHub Copilot e Claude Code como parceiros de planejamento, revisão de código e debugging; as decisões técnicas continuam sendo humanas.",
-      "Ciclo assistido da arquitetura ao teste: planejar, implementar, revisar e iterar com mais velocidade em tarefas complexas.",
-      "Resultado prático: entregas mais rápidas, menos bugs em produção e documentação técnica mantida no próprio fluxo.",
-      "Validação humana em cada etapa crítica para garantir qualidade, legibilidade e manutenibilidade a longo prazo.",
+      {
+        title: "Agentes especializados por domínio",
+        text: "Subagents com escopo e ferramentas próprios, versionados no repositório junto do código. O agente entra na tarefa já com o contexto certo, em vez de redescobrir o projeto a cada sessão.",
+      },
+      {
+        title: "Skills e comandos versionados",
+        text: "Fluxos recorrentes — revisão, release, checagem de acessibilidade — viram skills e slash commands no repositório. Mudar o procedimento é um pull request, não um prompt perdido no histórico.",
+      },
+      {
+        title: "MCP ligando o assistente às ferramentas",
+        text: "Servidores MCP dão acesso controlado a navegador, banco, documentação e serviços externos. A resposta vira leitura do estado real do sistema, com as permissões que eu defino.",
+      },
+      {
+        title: "Documentação como contexto",
+        text: "CLAUDE.md, ADRs e docs por funcionalidade vivem no repositório e são o que o assistente lê antes de escrever código. Onde doc e código divergem, o código vence e a doc é corrigida.",
+      },
+      {
+        title: "Portão de qualidade humano",
+        text: "Todo output passa por checagem de tipos, lint, testes e revisão minha antes do merge. A IA acelera a escrita; arquitetura e decisão de produto continuam humanas.",
+      },
+      {
+        title: "Contexto enxuto, resultado previsível",
+        text: "Tarefas fatiadas, escopo fechado por branch e prompts apontando para arquivos específicos. É o que separa “o agente resolveu” de “o agente reescreveu meio projeto”.",
+      },
+    ],
+    sectionDeliveryTitle: "Engenharia, CI/CD e Deploy",
+    sectionDeliveryText:
+      "Como o código sai da minha máquina e chega em produção: pipeline automatizado, portão de qualidade antes da publicação e infraestrutura sob controle.",
+    deliveryPipelineLabel: "Do commit à produção",
+    deliveryPipeline: [
+      "Commit e PR",
+      "Lint e tipos",
+      "Testes",
+      "Build",
+      "Deploy automatizado",
+      "Produção",
+    ],
+    deliveryPractices: [
+      {
+        title: "Pipeline em GitHub Actions",
+        text: "Push na branch principal dispara sempre o mesmo fluxo: dependências travadas por lockfile, lint, checagem de tipos, testes e build. Falhou uma etapa, nada é publicado.",
+      },
+      {
+        title: "Deploy automatizado e repetível",
+        text: "Publicação por SSH em VPS própria ou por imagem em container registry, com um deploy por vez e guarda-corpos que abortam antes de tocar em produção quando o artefato não confere.",
+      },
+      {
+        title: "Migrations versionadas",
+        text: "O banco evolui por migration versionada, aplicada no deploy antes de os containers subirem. Alteração manual em produção não faz parte do processo.",
+      },
+      {
+        title: "Infraestrutura sob controle",
+        text: "Docker Compose no desenvolvimento, Caddy como reverse proxy com TLS automático, secrets fora do repositório e variáveis injetadas em tempo de build ou execução.",
+      },
+      {
+        title: "Testes e tipos como rede de segurança",
+        text: "TypeScript estrito e suíte automatizada rodando no CI a cada push. Refatorar deixa de ser aposta e a regressão aparece antes do cliente.",
+      },
+      {
+        title: "Git com escopo fechado",
+        text: "Branch derivada da principal, escopo fechado por entrega, revisão antes do merge e nenhum segredo versionado. Histórico legível é o que permite reverter rápido.",
+      },
+    ],
+    deliveryProfileLabel: "Para contratação",
+    deliveryProfile: [
+      "5+ anos em produtos digitais",
+      "Do discovery ao deploy",
+      "Inglês avançado",
+      "Agile / Scrum",
+      "Remoto: times nacionais e internacionais",
     ],
     sectionAreasTitle: "Área de Atuação",
     sectionAreasText:
@@ -258,6 +369,73 @@ export const PORTFOLIO_CONTENT: Record<Locale, LocaleContent> = {
         image: "/images/projects/cademi-dashboard.svg",
         imageAlt: "Preview do projeto Dashboard Cademí",
         tags: ["Laravel", "Blade", "jQuery", "Bootstrap"],
+      },
+    ],
+    sectionOwnProjectsTitle: "Projetos Autorais",
+    sectionOwnProjectsText:
+      "Produtos próprios, construídos do zero: modelagem de domínio, produto, interface, infraestrutura e deploy.",
+    ownProjectVisitLabel: "Acessar",
+    ownProjects: [
+      {
+        name: "Agendarium",
+        url: "https://agendarium.net",
+        urlLabel: "agendarium.net",
+        logo: "/images/projects/agendarium-logo-horizontal.svg",
+        logoAlt: "Logo do Agendarium",
+        meta: "SaaS multi-tenant · Construído solo, ponta a ponta",
+        tagline:
+          "Agendamento online com horário marcado para prestadores de serviço no Brasil.",
+        summary:
+          "Um único núcleo de produto atende múltiplas verticais por configuração — não por código. Cada estabelecimento tem uma Vitrine pública sob URL própria, onde o cliente escolhe serviço, profissional e horário sem precisar ligar ou mandar mensagem; o gestor administra agenda, equipe, serviços, produtos, planos de cliente e cobrança por um painel próprio. Sobre isso há uma camada de plataforma: assinatura por níveis, ciclo de vida de conta integrado ao gateway de pagamento e um console interno de operação e suporte.",
+        stack: [
+          "Next.js 15",
+          "React 19",
+          "TypeScript",
+          "Tailwind v4",
+          "PostgreSQL 16",
+          "Prisma 6",
+          "Auth.js v5",
+          "pg-boss",
+          "Zod 4",
+          "Vitest",
+          "Docker",
+          "GitHub Actions",
+          "Caddy",
+          "VPS própria",
+        ],
+        highlightsTitle: "Destaques técnicos",
+        highlights: [
+          {
+            title: "Integridade de agenda garantida no banco",
+            text: "O anti-double-booking é uma constraint EXCLUDE USING gist do PostgreSQL sobre o intervalo do atendimento. Duas requisições concorrentes para o mesmo horário não dependem de o código lembrar de checar: o banco recusa.",
+          },
+          {
+            title: "Disponibilidade calculada, não persistida",
+            text: "Os horários livres são computados sob demanda a partir das janelas do profissional, aplicando exceções, buffer, antecedência mínima e horizonte máximo. Sem tabela de slots para desincronizar; datas em UTC, exibição em America/Sao_Paulo.",
+          },
+          {
+            title: "Modelo revisado quando não aguentou",
+            text: "A unidade de reserva deixou de ser o agendamento e passou a ser a Comanda: um container que agrega N agendamentos, produtos e cobrança numa visita só. Cancelar um item no meio do bloco sobe os seguintes na mesma transação.",
+          },
+          {
+            title: "Notificações no padrão outbox",
+            text: "Todo e-mail nasce como linha em tabela, gravada após o commit da regra de negócio — falha de e-mail nunca derruba um agendamento. Um worker separado despacha em lote com retry e backoff, com idempotência por chave única no banco.",
+          },
+          {
+            title: "Ciclo de conta como máquina de estados",
+            text: "Seis estados, cada transição disparada por evento — webhook, job ou ação de operador —, nunca por cálculo de relógio na leitura. O efeito de acesso é resolvido por uma única função consumida por todas as rotas.",
+          },
+          {
+            title: "Cobrança sem superfície PCI",
+            text: "O cadastro não coleta nem tokeniza cartão: checkout hospedado do gateway para cartão, fatura hospedada para PIX. Nenhum dos dois muda o estado da conta — quem ativa é o webhook de pagamento, validado por token e idempotente.",
+          },
+        ],
+        stats: [
+          { value: "~59 mil", label: "linhas de TypeScript/TSX" },
+          { value: "29", label: "modelos de dados" },
+          { value: "63", label: "páginas e route handlers" },
+          { value: "253", label: "testes automatizados" },
+        ],
       },
     ],
     sectionExperienceTitle: "Experiência Recente",
@@ -400,14 +578,73 @@ export const PORTFOLIO_CONTENT: Record<Locale, LocaleContent> = {
         ],
       },
     ],
-    sectionAiTitle: "AI-Assisted Development",
+    sectionAiTitle: "AI-Driven Development",
     sectionAiText:
-      "Increasingly working with AI-assisted development. This approach results in better projects, faster and more precise deliveries, as well as increasingly comprehensive test coverage and validation.",
+      "AI as part of the engineering process, not as a loose code generator: tooling versioned in the repository, controlled context and human review before the merge.",
     aiPractices: [
-      "GitHub Copilot and Claude Code as partners for planning, code review and debugging; technical decisions stay human.",
-      "Assisted cycle from architecture to testing: plan, implement, review and iterate faster on complex tasks.",
-      "Practical outcome: faster deliveries, fewer production bugs and technical documentation maintained in the flow.",
-      "Human validation at every critical step to ensure quality, readability and long-term maintainability.",
+      {
+        title: "Domain-specialized agents",
+        text: "Subagents with their own scope and tools, versioned in the repository alongside the code. The agent starts a task already holding the right context instead of rediscovering the project every session.",
+      },
+      {
+        title: "Versioned skills and commands",
+        text: "Recurring flows — review, release, accessibility checks — become skills and slash commands in the repository. Changing the procedure is a pull request, not a prompt lost in someone's history.",
+      },
+      {
+        title: "MCP wiring the assistant to real tools",
+        text: "MCP servers grant controlled access to the browser, the database, documentation and external services. Answers become readings of real system state, under permissions I define.",
+      },
+      {
+        title: "Documentation as context",
+        text: "CLAUDE.md, ADRs and per-feature docs live in the repository and are what the assistant reads before writing code. Where docs and code disagree, the code wins and the docs get fixed.",
+      },
+      {
+        title: "Human quality gate",
+        text: "Every output goes through typecheck, lint, tests and my own review before the merge. AI speeds up the writing; architecture and product decisions stay human.",
+      },
+      {
+        title: "Tight context, predictable output",
+        text: "Sliced tasks, scope closed per branch and prompts pointing at specific files. That's what separates “the agent solved it” from “the agent rewrote half the project”.",
+      },
+    ],
+    sectionDeliveryTitle: "Engineering, CI/CD and Deploy",
+    sectionDeliveryText:
+      "How code leaves my machine and reaches production: automated pipeline, a quality gate before publishing and infrastructure under control.",
+    deliveryPipelineLabel: "From commit to production",
+    deliveryPipeline: ["Commit and PR", "Lint and types", "Tests", "Build", "Automated deploy", "Production"],
+    deliveryPractices: [
+      {
+        title: "GitHub Actions pipeline",
+        text: "A push to the main branch always triggers the same flow: lockfile-pinned dependencies, lint, typecheck, tests and build. If one step fails, nothing ships.",
+      },
+      {
+        title: "Automated, repeatable deploy",
+        text: "Publishing over SSH to a self-hosted VPS or as an image in a container registry, one deploy at a time, with guardrails that abort before touching production when the artifact doesn't check out.",
+      },
+      {
+        title: "Versioned migrations",
+        text: "The database evolves through versioned migrations applied during deploy, before containers come up. Manual changes in production are not part of the process.",
+      },
+      {
+        title: "Infrastructure under control",
+        text: "Docker Compose in development, Caddy as a reverse proxy with automatic TLS, secrets kept out of the repository and variables injected at build or run time.",
+      },
+      {
+        title: "Tests and types as a safety net",
+        text: "Strict TypeScript and an automated suite running in CI on every push. Refactoring stops being a gamble and regressions show up before the client does.",
+      },
+      {
+        title: "Git with closed scope",
+        text: "Branch off the main line, scope closed per delivery, review before merge and no secrets in version control. A readable history is what makes a fast rollback possible.",
+      },
+    ],
+    deliveryProfileLabel: "For hiring",
+    deliveryProfile: [
+      "5+ years in digital products",
+      "From discovery to deploy",
+      "Advanced English",
+      "Agile / Scrum",
+      "Remote: local and international teams",
     ],
     sectionAreasTitle: "Area of Expertise",
     sectionAreasText:
@@ -486,6 +723,72 @@ export const PORTFOLIO_CONTENT: Record<Locale, LocaleContent> = {
         image: "/images/projects/cademi-dashboard.svg",
         imageAlt: "Preview of Cademí Dashboard project",
         tags: ["Laravel", "Blade", "jQuery", "Bootstrap"],
+      },
+    ],
+    sectionOwnProjectsTitle: "Personal Products",
+    sectionOwnProjectsText:
+      "Products of my own, built from scratch: domain modeling, product, interface, infrastructure and deploy.",
+    ownProjectVisitLabel: "Open",
+    ownProjects: [
+      {
+        name: "Agendarium",
+        url: "https://agendarium.net",
+        urlLabel: "agendarium.net",
+        logo: "/images/projects/agendarium-logo-horizontal.svg",
+        logoAlt: "Agendarium logo",
+        meta: "Multi-tenant SaaS · Built solo, end to end",
+        tagline: "Online appointment scheduling for Brazilian SMB service providers.",
+        summary:
+          "A single product core serves multiple verticals through configuration — not through code. Each business gets a public booking page under its own URL, where customers pick a service, a professional and a time slot without calling or messaging; the owner runs schedule, staff, services, products, customer plans and billing from a dedicated dashboard. On top of it sits a platform layer: tiered subscriptions, account lifecycle wired to the payment gateway and an internal operations and support console.",
+        stack: [
+          "Next.js 15",
+          "React 19",
+          "TypeScript",
+          "Tailwind v4",
+          "PostgreSQL 16",
+          "Prisma 6",
+          "Auth.js v5",
+          "pg-boss",
+          "Zod 4",
+          "Vitest",
+          "Docker",
+          "GitHub Actions",
+          "Caddy",
+          "Self-hosted VPS",
+        ],
+        highlightsTitle: "Technical highlights",
+        highlights: [
+          {
+            title: "Schedule integrity enforced by the database",
+            text: "Double-booking is prevented by a PostgreSQL EXCLUDE USING gist constraint over the appointment range. Two concurrent requests for the same slot don't rely on the code remembering to check: the database refuses.",
+          },
+          {
+            title: "Availability computed, never persisted",
+            text: "Free slots are computed on demand from each professional's availability windows, applying exceptions, buffers, minimum notice and booking horizon. No slot table to drift; dates stored in UTC, rendered in America/Sao_Paulo.",
+          },
+          {
+            title: "Domain remodeled when the model gave out",
+            text: "The unit of booking is no longer the appointment but the Ticket: a container aggregating N appointments, products and billing into a single visit. Cancelling an item mid-block pulls the following ones up in the same transaction.",
+          },
+          {
+            title: "Transactional outbox for notifications",
+            text: "Every email starts as a table row written after the business rule commits — a mail failure never takes down a booking. A separate worker dispatches in batches with retry and backoff, idempotent through a unique key in the database.",
+          },
+          {
+            title: "Account lifecycle as a state machine",
+            text: "Six states, each transition triggered by an event — webhook, job or operator action — never by clock math at read time. Access is resolved by a single function consumed by every route.",
+          },
+          {
+            title: "Billing with no PCI surface",
+            text: "Signup neither collects nor tokenizes cards: hosted checkout for credit card, hosted invoice for PIX. Neither one flips the account state — activation comes from the payment webhook, token-validated and idempotent.",
+          },
+        ],
+        stats: [
+          { value: "~59k", label: "lines of TypeScript/TSX" },
+          { value: "29", label: "data models" },
+          { value: "63", label: "pages and route handlers" },
+          { value: "253", label: "automated tests" },
+        ],
       },
     ],
     sectionExperienceTitle: "Recent Experience",

@@ -252,6 +252,189 @@
   .dark .field-input {
     @apply border-slate-700 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus:border-brand-400 focus:ring-brand-800;
   }
+
+  /* Cards de pratica: secoes de IA e de engenharia/entrega. */
+  .practice-title {
+    @apply mb-1.5 text-sm font-bold leading-snug text-slate-900;
+  }
+
+  .dark .practice-title {
+    @apply text-slate-100;
+  }
+
+  .practice-text {
+    @apply text-sm leading-relaxed text-slate-600;
+  }
+
+  .dark .practice-text {
+    @apply text-slate-300;
+  }
+
+  .delivery-label {
+    @apply text-xs font-bold uppercase tracking-[0.1em] text-slate-500;
+  }
+
+  .dark .delivery-label {
+    @apply text-slate-400;
+  }
+
+  .delivery-pipeline {
+    @apply mt-3 flex flex-wrap items-center gap-x-1 gap-y-2;
+  }
+
+  .delivery-step {
+    @apply flex items-center;
+  }
+
+  /* No mobile as etapas quebram em varias linhas e a seta fica pendurada no
+     fim da linha; abaixo de md a numeracao ja carrega a ordem sozinha. */
+  .delivery-step:not(:last-child)::after {
+    content: "";
+  }
+
+  @media (min-width: 768px) {
+    .delivery-step:not(:last-child)::after {
+      content: "→";
+      @apply mx-1 text-sm text-slate-400;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .dark .delivery-step:not(:last-child)::after {
+      @apply text-slate-500;
+    }
+  }
+
+  .delivery-step-chip {
+    @apply inline-flex items-center gap-2 rounded-lg border border-brand-200/70 bg-brand-50/70 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.06em] text-brand-800;
+  }
+
+  .dark .delivery-step-chip {
+    @apply border-brand-800/90 bg-brand-900/40 text-brand-100;
+  }
+
+  .delivery-step-index {
+    @apply inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand-700/15 text-[0.6rem] leading-none text-brand-800;
+  }
+
+  .dark .delivery-step-index {
+    @apply bg-brand-200/20 text-brand-100;
+  }
+
+  /* Projetos autorais: blocos largos empilhados, um produto por bloco. */
+  .own-projects {
+    @apply space-y-5;
+  }
+
+  .own-project {
+    @apply overflow-hidden;
+  }
+
+  .own-project-header {
+    @apply flex flex-col gap-4 border-b border-slate-200/80 bg-gradient-to-r from-brand-50/90 via-white/20 to-transparent p-6 md:flex-row md:items-center md:gap-6 md:p-8;
+  }
+
+  .dark .own-project-header {
+    @apply border-slate-700/80 from-brand-900/50 via-slate-900/10 to-transparent;
+  }
+
+  /* O wordmark do logo e azul-marinho sobre placa clara: sobre fundo escuro
+     ele some. A placa clara nos dois temas mantem o logo legivel. */
+  .own-project-logo {
+    @apply inline-flex shrink-0 items-center justify-center self-start rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-slate-200 md:self-auto;
+  }
+
+  .dark .own-project-logo {
+    @apply bg-slate-100 ring-slate-300/40;
+  }
+
+  .own-project-meta {
+    @apply text-xs font-bold uppercase tracking-[0.08em] text-brand-700;
+  }
+
+  .dark .own-project-meta {
+    @apply text-brand-300;
+  }
+
+  .own-project-tagline {
+    @apply font-display text-xl font-semibold leading-snug text-slate-900 md:text-2xl;
+  }
+
+  .dark .own-project-tagline {
+    @apply text-slate-100;
+  }
+
+  .own-project-body {
+    @apply flex flex-col gap-6 p-6 md:p-8;
+  }
+
+  .own-project-summary {
+    @apply max-w-4xl text-sm leading-relaxed text-slate-700 md:text-base;
+  }
+
+  .dark .own-project-summary {
+    @apply text-slate-200;
+  }
+
+  .own-project-subtitle {
+    @apply text-xs font-bold uppercase tracking-[0.1em] text-slate-500;
+  }
+
+  .dark .own-project-subtitle {
+    @apply text-slate-400;
+  }
+
+  .own-project-highlight {
+    @apply rounded-xl border border-slate-200/80 bg-slate-50/70 p-4;
+  }
+
+  .dark .own-project-highlight {
+    @apply border-slate-700/80 bg-slate-950/40;
+  }
+
+  .own-project-highlight-title {
+    @apply mb-1.5 text-sm font-bold text-slate-900;
+  }
+
+  .dark .own-project-highlight-title {
+    @apply text-slate-100;
+  }
+
+  .own-project-highlight-text {
+    @apply text-[0.8rem] leading-relaxed text-slate-600;
+  }
+
+  .dark .own-project-highlight-text {
+    @apply text-slate-300;
+  }
+
+  .own-project-stats {
+    @apply grid grid-cols-2 gap-3 md:grid-cols-4;
+  }
+
+  .own-project-stat {
+    @apply rounded-xl border border-brand-200/70 bg-brand-50/60 px-4 py-3 text-center;
+  }
+
+  .dark .own-project-stat {
+    @apply border-brand-800/80 bg-brand-900/30;
+  }
+
+  .own-project-stat-value {
+    @apply font-display text-2xl font-semibold leading-none text-brand-800;
+  }
+
+  .dark .own-project-stat-value {
+    @apply text-brand-200;
+  }
+
+  .own-project-stat-label {
+    @apply mt-1.5 text-[0.7rem] font-medium uppercase tracking-[0.06em] text-slate-600;
+  }
+
+  .dark .own-project-stat-label {
+    @apply text-slate-300;
+  }
 }
 
 [data-animate] {

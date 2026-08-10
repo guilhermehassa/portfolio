@@ -22,10 +22,11 @@ export function AiAssistedSection() {
       <ul className="grid gap-3 md:grid-cols-3">
         {copy.aiPractices.map((practice) => (
           <li
-            key={practice}
-            className="glass-panel border border-slate-200/80 p-5 text-sm leading-relaxed text-slate-700 dark:border-slate-700 dark:text-slate-200"
+            key={practice.title}
+            className="glass-panel border border-slate-200/80 p-5 dark:border-slate-700"
           >
-            {practice}
+            <h3 className="practice-title">{practice.title}</h3>
+            <p className="practice-text">{practice.text}</p>
           </li>
         ))}
       </ul>
