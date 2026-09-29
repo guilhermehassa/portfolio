@@ -1,0 +1,38 @@
+{
+  "id": "/motorista",
+  "name": "Motorista | Controle financeiro",
+  "short_name": "Motorista",
+  "description": "Controle pessoal de jornadas, ganhos, gastos e metas.",
+  "lang": "pt-BR",
+  "start_url": "/motorista",
+  "scope": "/motorista",
+  "display": "standalone",
+  "background_color": "#eef3fb",
+  "theme_color": "#2148b6",
+  "icons": [
+    {
+      "src": "/pwa/motorista-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa/motorista-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa/motorista-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa/motorista-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

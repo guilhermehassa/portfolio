@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
+Disallow: /motorista
 
 Sitemap: https://hassa.dev.br/sitemap.xml

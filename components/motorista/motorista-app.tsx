@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type InputHTMLAttributes,
+  type MouseEvent,
+} from "react";
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
@@ -13,6 +21,7 @@ import {
   deleteDoc,
   doc,
   onSnapshot,
+  runTransaction,
   setDoc,
   writeBatch,
 } from "firebase/firestore";
@@ -25,10 +34,16 @@ import {
   DEFAULT_CATEGORIES,
   civilDate,
   decimal,
+  emptyDay,
+  expectedGoal,
   exportCsv,
-  goalPlan,
+  goalForMonth,
   isDate,
+  isoWeek,
+  legacyGains,
   localDate,
+  maskMoney,
+  monthBounds,
   money,
   moneyInput,
   parseCents,
@@ -36,27 +51,43 @@ import {
   periodBounds,
   totals,
   validateBackup,
+  weekBounds,
   type Backup,
   type Category,
   type Day,
   type Expense,
+  type Gain,
   type Goal,
 } from "@/lib/motorista";
 import "./motorista.css";
 
-type Tab = "resumo" | "dia" | "gastos" | "meta" | "backup";
+type Tab = "resumo" | "ganhos" | "gastos" | "definicoes" | "backup";
 type Filter = "day" | "week" | "month" | "custom";
+type PeriodSelection = {
+  filter: Filter;
+  anchor: string;
+  week: string;
+  month: string;
+  from: string;
+  to: string;
+};
 const today = localDate();
-const emptyDay = (date: string): Day => ({
-  date,
-  uberCents: 0,
-  uberRides: 0,
-  ninetyNineCents: 0,
-  ninetyNineRides: 0,
-  otherCents: 0,
-  minutes: 0,
-  km: 0,
+const initialPeriod = (): PeriodSelection => ({
+  filter: "week",
+  anchor: today,
+  week: isoWeek(today),
+  month: today.slice(0, 7),
+  from: `${today.slice(0, 7)}-01`,
+  to: today,
 });
+const selectedBounds = (period: PeriodSelection) =>
+  period.filter === "week"
+    ? weekBounds(period.week)
+    : period.filter === "month"
+      ? monthBounds(period.month)
+      : periodBounds(period.filter, period.anchor, period.from, period.to);
+const validBounds = (bounds: { from: string; to: string }) =>
+  isDate(bounds.from) && isDate(bounds.to) && bounds.from <= bounds.to;
 const fileDownload = (content: string, name: string, type: string) => {
   const url = URL.createObjectURL(new Blob([content], { type }));
   const link = document.createElement("a");
@@ -88,21 +119,25 @@ export default function MotoristaApp() {
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
-  const [filter, setFilter] = useState<Filter>("month");
-  const [anchor, setAnchor] = useState(today);
-  const [from, setFrom] = useState(`${today.slice(0, 7)}-01`);
-  const [to, setTo] = useState(today);
+  const [summaryPeriod, setSummaryPeriod] = useState(initialPeriod);
+  const [gainsPeriod, setGainsPeriod] = useState(initialPeriod);
+  const [expensesPeriod, setExpensesPeriod] = useState(initialPeriod);
   const [dayDate, setDayDate] = useState(today);
+  const [modal, setModal] = useState<"gain" | "expense" | "day" | null>(null);
+  const modalRef = useRef<HTMLDialogElement>(null);
+  const [gainForm, setGainForm] = useState<Gain>({
+    id: "",
+    date: today,
+    source: "uber",
+    cents: 0,
+  });
+  const [gainValue, setGainValue] = useState("");
   const [dayDraft, setDayDraft] = useState<{
     key: string;
     fields: {
-      uber: string;
-      uberRides: string;
-      ninetyNine: string;
-      ninetyNineRides: string;
-      other: string;
       hours: string;
       km: string;
+      consumption: string;
     };
   } | null>(null);
   const [expenseForm, setExpenseForm] = useState({
@@ -115,11 +150,7 @@ export default function MotoristaApp() {
   const [categoryEdit, setCategoryEdit] = useState<string | null>(null);
   const [categoryName, setCategoryName] = useState("");
   const [newCategory, setNewCategory] = useState("");
-  const [goalMonth, setGoalMonth] = useState(today.slice(0, 7));
-  const [goalDraft, setGoalDraft] = useState<{
-    month: string;
-    value: string;
-  } | null>(null);
+  const [goalDraft, setGoalDraft] = useState<string | null>(null);
   const [backup, setBackup] = useState<Backup | null>(null);
   const [importMode, setImportMode] = useState<"new" | "update">("new");
 
@@ -138,9 +169,8 @@ export default function MotoristaApp() {
   const allLoaded = ["days", "expenses", "categories", "goals"].every(
     (key) => loaded[key],
   );
-  const bounds = periodBounds(filter, anchor, from, to);
-  const periodValid =
-    isDate(bounds.from) && isDate(bounds.to) && bounds.from <= bounds.to;
+  const bounds = selectedBounds(summaryPeriod);
+  const periodValid = validBounds(bounds);
   const shownDays = useMemo(
     () =>
       periodValid
@@ -159,71 +189,70 @@ export default function MotoristaApp() {
     [expenses, bounds.from, bounds.to, periodValid],
   );
   const summary = totals(shownDays, shownExpenses);
-  const goal = goals.find((item) => item.month === goalMonth)?.cents ?? 0;
+  const expenseByCategory = useMemo(() => {
+    const amounts = new Map<string, number>();
+    shownExpenses.forEach((expense) => {
+      amounts.set(
+        expense.categoryId,
+        (amounts.get(expense.categoryId) ?? 0) + expense.cents,
+      );
+    });
+    return [...amounts]
+      .map(([id, cents]) => ({
+        id,
+        name: categories.find((category) => category.id === id)?.name ?? id,
+        cents,
+      }))
+      .sort((a, b) => b.cents - a.cents || a.name.localeCompare(b.name, "pt-BR"));
+  }, [shownExpenses, categories]);
+  const expected = periodValid
+    ? expectedGoal(bounds.from, bounds.to, goals)
+    : null;
+  const missing =
+    expected === null ? null : Math.max(expected - summary.balance, 0);
+  const progressMonth =
+    periodValid &&
+    !(summaryPeriod.filter === "custom" && bounds.from.slice(0, 7) !== bounds.to.slice(0, 7))
+      ? bounds.from.slice(0, 7)
+      : null;
+  const monthlyGoal = progressMonth
+    ? goalForMonth(goals, progressMonth)?.cents
+    : null;
+  const monthlyBalance = progressMonth
+    ? totals(
+        days.filter((day) => day.date.startsWith(progressMonth)),
+        expenses.filter((expense) => expense.date.startsWith(progressMonth)),
+      ).balance
+    : 0;
+  const monthlyPercent = monthlyGoal
+    ? (monthlyBalance / monthlyGoal) * 100
+    : null;
+  const currentMonth = localDate().slice(0, 7);
+  const goal = goalForMonth(goals, currentMonth)?.cents ?? 0;
   const selectedDay =
     days.find((item) => item.date === dayDate) ?? emptyDay(dayDate);
   const dayForm =
     dayDraft?.key === dayDate
       ? dayDraft.fields
       : {
-          uber: moneyInput(selectedDay.uberCents),
-          uberRides: selectedDay.uberRides ? String(selectedDay.uberRides) : "",
-          ninetyNine: moneyInput(selectedDay.ninetyNineCents),
-          ninetyNineRides: selectedDay.ninetyNineRides
-            ? String(selectedDay.ninetyNineRides)
-            : "",
-          other: moneyInput(selectedDay.otherCents),
           hours: selectedDay.minutes
             ? (selectedDay.minutes / 60).toFixed(2).replace(".", ",")
             : "",
           km: selectedDay.km ? String(selectedDay.km).replace(".", ",") : "",
+          consumption: selectedDay.consumption
+            ? String(selectedDay.consumption).replace(".", ",")
+            : "",
         };
   const setDayForm = (fields: typeof dayForm) =>
     setDayDraft({ key: dayDate, fields });
-  const goalInput =
-    goalDraft?.month === goalMonth ? goalDraft.value : moneyInput(goal);
-  const setGoalInput = (value: string) =>
-    setGoalDraft({ month: goalMonth, value });
-  const monthTotals = totals(
-    days.filter((day) => day.date.startsWith(goalMonth)),
-    expenses.filter((expense) => expense.date.startsWith(goalMonth)),
-  );
-  const plan = goalPlan(goalMonth, goal, monthTotals.balance);
-  const expenseByCategory = categories
-    .map((category) => ({
-      ...category,
-      cents: shownExpenses
-        .filter((expense) => expense.categoryId === category.id)
-        .reduce((sum, expense) => sum + expense.cents, 0),
-    }))
-    .filter((item) => item.cents > 0);
-  const dailyEvolution = useMemo(() => {
-    if (!periodValid) return [];
-    const result: {
-      date: string;
-      gains: number;
-      costs: number;
-      balance: number;
-    }[] = [];
-    const cursor = civilDate(bounds.from);
-    const end = civilDate(bounds.to);
-    // Um intervalo civil amplo continua completo; a lista tem rolagem própria.
-    while (cursor <= end && result.length < 3660) {
-      const date = localDate(cursor);
-      const dayTotals = totals(
-        days.filter((day) => day.date === date),
-        expenses.filter((expense) => expense.date === date),
-      );
-      result.push({
-        date,
-        gains: dayTotals.gains,
-        costs: dayTotals.costs,
-        balance: dayTotals.balance,
-      });
-      cursor.setDate(cursor.getDate() + 1);
-    }
-    return result;
-  }, [bounds.from, bounds.to, periodValid, days, expenses]);
+  const goalInput = goalDraft ?? moneyInput(goal);
+
+  useEffect(() => {
+    if (!modal) return;
+    const dialog = modalRef.current;
+    dialog?.showModal();
+    return () => dialog?.close();
+  }, [modal]);
 
   useEffect(
     () =>
@@ -301,40 +330,207 @@ export default function MotoristaApp() {
   async function saveDay(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!isDate(dayDate)) return setNotice("Selecione uma data válida.");
-    const cents = [dayForm.uber, dayForm.ninetyNine, dayForm.other].map(
-      parseCents,
-    );
-    const rides = [dayForm.uberRides, dayForm.ninetyNineRides].map((value) =>
-      value.trim() ? Number(value) : 0,
-    );
     const hours = parseDecimal(dayForm.hours);
     const km = parseDecimal(dayForm.km);
+    const consumption = parseDecimal(dayForm.consumption);
     if (
-      cents.some((value) => !Number.isSafeInteger(value)) ||
-      rides.some((value) => !Number.isSafeInteger(value) || value < 0) ||
       !Number.isFinite(hours) ||
       hours < 0 ||
       !Number.isSafeInteger(Math.round(hours * 60)) ||
       !Number.isFinite(km) ||
-      km < 0
+      km < 0 ||
+      !Number.isFinite(consumption) ||
+      consumption < 0
     )
-      return setNotice(
-        "Revise os valores: dinheiro com até 2 casas, corridas inteiras e horas/quilômetros positivos.",
-      );
-    const day: Day = {
-      date: dayDate,
-      uberCents: cents[0],
-      uberRides: rides[0],
-      ninetyNineCents: cents[1],
-      ninetyNineRides: rides[1],
-      otherCents: cents[2],
-      minutes: Math.round(hours * 60),
-      km,
-    };
+      return setNotice("Revise os valores de horas, quilômetros e consumo.");
     await withSave(async () => {
-      await setDoc(path("days", dayDate), day);
+      await setDoc(
+        path("days", dayDate),
+        {
+          date: dayDate,
+          minutes: Math.round(hours * 60),
+          km,
+          consumption,
+        },
+        { merge: true },
+      );
       setDayDraft(null);
-    }, "Dia salvo. Indicadores atualizados.");
+      setModal(null);
+    }, "Dados do dia salvos. Indicadores atualizados.");
+  }
+
+  const gainsBounds = selectedBounds(gainsPeriod);
+  const gainsPeriodValid = validBounds(gainsBounds);
+  const registeredDays = [...days]
+    .filter(
+      (day) =>
+        gainsPeriodValid &&
+        day.date >= gainsBounds.from &&
+        day.date <= gainsBounds.to &&
+        (day.uberCents > 0 ||
+          day.ninetyNineCents > 0 ||
+          day.otherCents > 0 ||
+          day.minutes > 0 ||
+          day.km > 0 ||
+          (day.consumption ?? 0) > 0),
+    )
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const gainsTotal = totals(registeredDays, []).gains;
+  const expensesBounds = selectedBounds(expensesPeriod);
+  const expensesPeriodValid = validBounds(expensesBounds);
+  const listedExpenses = expenses.filter(
+    (expense) =>
+      expensesPeriodValid &&
+      expense.date >= expensesBounds.from &&
+      expense.date <= expensesBounds.to,
+  );
+  const expensesTotal = listedExpenses.reduce(
+    (sum, expense) => sum + expense.cents,
+    0,
+  );
+  const expenseDays = [
+    ...new Set(listedExpenses.map((expense) => expense.date)),
+  ]
+    .sort((a, b) => b.localeCompare(a))
+    .map((date) => {
+      const items = listedExpenses.filter((expense) => expense.date === date);
+      return {
+        date,
+        items,
+        total: items.reduce((sum, expense) => sum + expense.cents, 0),
+      };
+    });
+  function newGain(date = localDate()) {
+    setGainForm({ id: "", date, source: "uber", cents: 0 });
+    setGainValue("");
+    setModal("gain");
+    setNotice("");
+  }
+  function editGain(gain: Gain) {
+    setGainForm(gain);
+    setGainValue(moneyInput(gain.cents));
+    setModal("gain");
+    setNotice("");
+  }
+  function editDay(date: string) {
+    setDayDate(date);
+    setDayDraft(null);
+    setModal("day");
+    setNotice("");
+  }
+  function newExpense(date = localDate()) {
+    setExpenseForm({
+      id: "",
+      date,
+      categoryId: "combustivel",
+      value: "",
+      note: "",
+    });
+    setModal("expense");
+    setNotice("");
+  }
+  function editExpense(expense: Expense) {
+    setExpenseForm({
+      id: expense.id,
+      date: expense.date,
+      categoryId: expense.categoryId,
+      value: moneyInput(expense.cents),
+      note: expense.note ?? "",
+    });
+    setModal("expense");
+    setNotice("");
+  }
+  const clearLegacyGain = (source: Gain["source"]) => ({
+    [`${source}Cents`]: 0,
+    ...(source === "uber" ? { uberRides: 0 } : {}),
+    ...(source === "ninetyNine" ? { ninetyNineRides: 0 } : {}),
+  });
+  async function saveGain(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const cents = parseCents(gainValue);
+    if (!isDate(gainForm.date) || !Number.isSafeInteger(cents) || cents <= 0)
+      return setNotice("Informe data e valor positivo válidos.");
+    const originalDate = gainForm.id ? gainForm.id.split(":")[1] : "";
+    const originalSource = gainForm.id
+      ? (gainForm.id.split(":")[2] as Gain["source"])
+      : null;
+    await withSave(
+      async () => {
+        await runTransaction(motoristaDb, async (transaction) => {
+          const destination = path("days", gainForm.date);
+          const origin = originalDate ? path("days", originalDate) : null;
+          const sameDate = originalDate === gainForm.date;
+          const originSnapshot = origin ? await transaction.get(origin) : null;
+          const destinationSnapshot =
+            sameDate && originSnapshot
+              ? originSnapshot
+              : await transaction.get(destination);
+          const destinationDay = {
+            ...emptyDay(gainForm.date),
+            ...destinationSnapshot.data(),
+          };
+          const key = `${gainForm.source}Cents` as const;
+          const sameSlot = sameDate && originalSource === gainForm.source;
+          if (destinationDay[key] > 0 && !sameSlot)
+            throw new Error(
+              "Já existe um ganho desta origem nessa data. Edite o registro existente.",
+            );
+          if (originalSource && origin) {
+            const previous = clearLegacyGain(originalSource);
+            if (sameSlot) {
+              transaction.set(
+                destination,
+                { date: gainForm.date, [key]: cents },
+                { merge: true },
+              );
+            } else if (sameDate) {
+              transaction.set(
+                destination,
+                { date: gainForm.date, ...previous, [key]: cents },
+                { merge: true },
+              );
+            } else {
+              transaction.set(
+                origin,
+                { date: originalDate, ...previous },
+                { merge: true },
+              );
+              transaction.set(
+                destination,
+                { date: gainForm.date, [key]: cents },
+                { merge: true },
+              );
+            }
+          } else {
+            transaction.set(
+              destination,
+              { date: gainForm.date, [key]: cents },
+              { merge: true },
+            );
+          }
+        });
+        setModal(null);
+        setGainValue("");
+      },
+      gainForm.id ? "Ganho atualizado." : "Ganho registrado.",
+    );
+  }
+  async function removeGain(gain: Gain) {
+    if (
+      !window.confirm(
+        `Excluir o ganho de ${money(gain.cents)} em ${dateLabel(gain.date)}?`,
+      )
+    )
+      return;
+    await withSave(
+      () =>
+        setDoc(
+          path("days", gain.date),
+          { date: gain.date, ...clearLegacyGain(gain.source) },
+          { merge: true },
+        ),
+      "Ganho excluído.",
+    );
   }
 
   async function saveExpense(event: FormEvent<HTMLFormElement>) {
@@ -372,13 +568,7 @@ export default function MotoristaApp() {
         }
         batch.set(path("expenses", id), expense);
         await batch.commit();
-        setExpenseForm({
-          id: "",
-          date: expense.date,
-          categoryId: expense.categoryId,
-          value: "",
-          note: "",
-        });
+        setModal(null);
       },
       expenseForm.id ? "Gasto atualizado." : "Gasto salvo.",
     );
@@ -417,20 +607,17 @@ export default function MotoristaApp() {
   async function saveGoal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const cents = parseCents(goalInput);
-    if (
-      !/^\d{4}-(0[1-9]|1[0-2])$/.test(goalMonth) ||
-      !Number.isSafeInteger(cents) ||
-      cents <= 0
-    )
-      return setNotice("Informe mês e meta mensal positiva válidos.");
+    if (!Number.isSafeInteger(cents) || cents <= 0)
+      return setNotice("Informe uma meta mensal positiva válida.");
+    const month = localDate().slice(0, 7);
     await withSave(async () => {
-      await setDoc(path("goals", goalMonth), { month: goalMonth, cents });
+      await setDoc(path("goals", month), { month, cents });
       setGoalDraft(null);
-    }, "Meta mensal salva.");
+    }, "Meta mensal salva para este mês e os seguintes.");
   }
   function downloadJson() {
     const payload: Backup = {
-      version: 1,
+      version: 3,
       exportedAt: new Date().toISOString(),
       days,
       expenses,
@@ -594,9 +781,9 @@ export default function MotoristaApp() {
           {(
             [
               ["resumo", "Resumo"],
-              ["dia", "Dia"],
+              ["ganhos", "Ganhos"],
               ["gastos", "Gastos"],
-              ["meta", "Meta"],
+              ["definicoes", "Definições"],
               ["backup", "Backup"],
             ] as [Tab, string][]
           ).map(([id, label]) => (
@@ -604,12 +791,15 @@ export default function MotoristaApp() {
               key={id}
               type="button"
               className={tab === id ? "active" : ""}
+              aria-current={tab === id ? "true" : undefined}
               onClick={() => {
                 setTab(id);
                 setNotice("");
+                window.scrollTo({ top: 0, behavior: "auto" });
               }}
             >
-              {label}
+              <TabIcon tab={id} />
+              <span>{label}</span>
             </button>
           ))}
         </nav>
@@ -642,430 +832,498 @@ export default function MotoristaApp() {
                       ainda não lançados ficam fora do cálculo.
                     </p>
                   </div>
-                  <button
-                    className="motorista-primary"
-                    onClick={() => {
-                      setDayDate(today);
-                      setTab("dia");
-                    }}
-                  >
-                    Registrar dia
-                  </button>
-                </div>
-                <div className="motorista-card motorista-filters">
-                  <label>
-                    Período
-                    <select
-                      value={filter}
-                      onChange={(event) =>
-                        setFilter(event.target.value as Filter)
-                      }
+                  <div className="motorista-actions motorista-quick-actions">
+                    <button
+                      className="motorista-primary"
+                      onClick={() => {
+                        newGain();
+                        setTab("ganhos");
+                      }}
                     >
-                      <option value="day">Dia</option>
-                      <option value="week">Semana</option>
-                      <option value="month">Mês</option>
-                      <option value="custom">Personalizado</option>
-                    </select>
-                  </label>
-                  {filter === "custom" ? (
-                    <>
-                      <label>
-                        De
-                        <input
-                          type="date"
-                          value={from}
-                          onChange={(event) => setFrom(event.target.value)}
-                        />
-                      </label>
-                      <label>
-                        Até
-                        <input
-                          type="date"
-                          value={to}
-                          onChange={(event) => setTo(event.target.value)}
-                        />
-                      </label>
-                    </>
-                  ) : (
-                    <label>
-                      Data de referência
-                      <input
-                        type="date"
-                        value={anchor}
-                        onChange={(event) => setAnchor(event.target.value)}
-                      />
-                    </label>
-                  )}
-                  <span className="motorista-period">
-                    {periodValid
-                      ? `${dateLabel(bounds.from)} a ${dateLabel(bounds.to)}`
-                      : "Intervalo inválido"}
-                  </span>
-                </div>
-                <div className="motorista-stats">
-                  <Metric
-                    label="Ganhos"
-                    value={money(summary.gains)}
-                    emphasis="positive"
-                  />
-                  <Metric label="Gastos" value={money(summary.costs)} />
-                  <Metric
-                    label="Saldo registrado"
-                    value={money(summary.balance)}
-                    emphasis={summary.balance < 0 ? "negative" : "positive"}
-                  />
-                  <Metric label="Corridas" value={String(summary.rides)} />
-                </div>
-                <div className="motorista-grid">
-                  <div className="motorista-card">
-                    <h2>Ganhos por origem</h2>
-                    <DataRow
-                      label="Uber"
-                      value={money(summary.uber)}
-                      detail={`${summary.uberRides} corridas · média ${ratio(summary.uber, summary.uberRides)}`}
-                    />
-                    <DataRow
-                      label="99"
-                      value={money(summary.ninetyNine)}
-                      detail={`${summary.ninetyNineRides} corridas · média ${ratio(summary.ninetyNine, summary.ninetyNineRides)}`}
-                    />
-                    <DataRow label="Outros" value={money(summary.other)} />
-                    <DataRow
-                      label="Média por corrida (Uber + 99)"
-                      value={ratio(
-                        summary.uber + summary.ninetyNine,
-                        summary.rides,
-                      )}
-                    />
+                      Registrar ganho
+                    </button>
+                    <button
+                      className="motorista-secondary"
+                      onClick={() => {
+                        newExpense();
+                        setTab("gastos");
+                      }}
+                    >
+                      Registrar gasto
+                    </button>
                   </div>
-                  <div className="motorista-card">
-                    <h2>Jornada e rendimento</h2>
-                    <DataRow
+                </div>
+                <PeriodFilter
+                  selection={summaryPeriod}
+                  onChange={setSummaryPeriod}
+                />
+                <div className="motorista-overview">
+                  <div className="motorista-card motorista-overview-card">
+                    <span>Meta</span>
+                    <div className="motorista-goal-value">
+                      <strong
+                        className={
+                          expected === null
+                            ? ""
+                            : summary.balance >= expected
+                              ? "met"
+                              : "behind"
+                        }
+                      >
+                        {money(summary.balance)}
+                      </strong>
+                      <span>/ {expected === null ? "—" : money(expected)}</span>
+                    </div>
+                    {periodValid && expected === null && (
+                      <small>Defina a meta de cada mês deste período.</small>
+                    )}
+                  </div>
+                  <Metric label="Saldo" value={money(summary.balance)} />
+                  <Metric
+                    label="Falta"
+                    value={missing === null ? "—" : money(missing)}
+                  />
+                  <div className="motorista-card motorista-overview-card">
+                    <span>% da meta do mês</span>
+                    <strong>
+                      {monthlyPercent === null
+                        ? "—"
+                        : `${decimal(monthlyPercent, 1)}%`}
+                    </strong>
+                    {monthlyPercent !== null && (
+                      <div
+                        className="motorista-progress"
+                        role="progressbar"
+                        aria-label="Progresso da meta mensal"
+                        aria-valuenow={Math.max(
+                          0,
+                          Math.min(100, Math.round(monthlyPercent)),
+                        )}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                      >
+                        <span
+                          style={{
+                            width: `${Math.max(0, Math.min(100, monthlyPercent))}%`,
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="motorista-card">
+                  <h2>Origem de ganhos</h2>
+                  <div className="motorista-origin-list">
+                    {[
+                      { label: "Uber", cents: summary.uber, kind: "uber" },
+                      {
+                        label: "99",
+                        cents: summary.ninetyNine,
+                        kind: "ninety-nine",
+                      },
+                      { label: "Outros", cents: summary.other, kind: "other" },
+                    ].map((origin) => {
+                      const percent =
+                        summary.gains > 0
+                          ? (origin.cents / summary.gains) * 100
+                          : 0;
+                      return (
+                        <div className="motorista-origin" key={origin.label}>
+                          <div className="motorista-origin-label">
+                            <strong>{origin.label}</strong>
+                            <span>
+                              {money(origin.cents)} ({decimal(percent, 1)}%)
+                            </span>
+                          </div>
+                          <div
+                            className="motorista-origin-track"
+                            role="progressbar"
+                            aria-label={`Participação de ${origin.label} nos ganhos`}
+                            aria-valuenow={Math.round(percent)}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                          >
+                            <span
+                              className={origin.kind}
+                              style={{ width: `${percent}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="motorista-card">
+                  <h2>Origem dos gastos</h2>
+                  {expenseByCategory.length === 0 ? (
+                    <p className="motorista-muted">
+                      {periodValid
+                        ? "Nenhum gasto neste período."
+                        : "Selecione um período válido."}
+                    </p>
+                  ) : (
+                    <div className="motorista-origin-list">
+                      {expenseByCategory.map((category) => {
+                        const percent =
+                          summary.costs > 0
+                            ? (category.cents / summary.costs) * 100
+                            : 0;
+                        return (
+                          <div className="motorista-origin" key={category.id}>
+                            <div className="motorista-origin-label">
+                              <strong>{category.name}</strong>
+                              <span>
+                                {money(category.cents)} ({decimal(percent, 1)}%)
+                              </span>
+                            </div>
+                            <div
+                              className="motorista-origin-track"
+                              role="progressbar"
+                              aria-label={`Participação de ${category.name} nos gastos`}
+                              aria-valuenow={Math.round(percent)}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                            >
+                              <span
+                                className="expense"
+                                style={{ width: `${percent}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <div className="motorista-card">
+                  <h2>Estatísticas</h2>
+                  <div className="motorista-stats">
+                    <Metric
                       label="Horas trabalhadas"
                       value={`${decimal(summary.minutes / 60, 1)} h`}
                     />
-                    <DataRow
-                      label="Quilômetros rodados"
-                      value={`${decimal(summary.km, 1)} km`}
-                    />
-                    <DataRow
-                      label="Ganho por hora"
+                    <Metric
+                      label="Ganho por hora (média)"
                       value={ratio(summary.gains * 60, summary.minutes)}
                     />
-                    <DataRow
-                      label="Saldo por hora"
-                      value={ratio(summary.balance * 60, summary.minutes)}
+                    <Metric
+                      label="KM rodados"
+                      value={`${decimal(summary.km, 1)} km`}
                     />
-                    <DataRow
-                      label="Ganho por km"
+                    <Metric
+                      label="Ganho por KM (média)"
                       value={ratio(summary.gains, summary.km)}
                     />
-                    <DataRow
-                      label="Saldo por km"
-                      value={ratio(summary.balance, summary.km)}
+                    <Metric
+                      label="Consumo médio"
+                      value={
+                        summary.consumption === null
+                          ? "—"
+                          : `${decimal(summary.consumption, 2)} km/L`
+                      }
                     />
-                    <DataRow
-                      label="Gasto por km"
-                      value={ratio(summary.costs, summary.km)}
-                    />
-                  </div>
-                </div>
-                <div className="motorista-grid">
-                  <div className="motorista-card">
-                    <h2>Gastos por categoria</h2>
-                    {expenseByCategory.length ? (
-                      expenseByCategory
-                        .sort((a, b) => b.cents - a.cents)
-                        .map((item) => (
-                          <DataRow
-                            key={item.id}
-                            label={item.name}
-                            value={money(item.cents)}
-                          />
-                        ))
-                    ) : (
-                      <p className="motorista-muted">
-                        Nenhum gasto no período.
-                      </p>
-                    )}
-                  </div>
-                  <div className="motorista-card">
-                    <h2>Evolução diária</h2>
-                    <p className="motorista-muted">
-                      Ganhos, gastos e saldo de cada data.
-                    </p>
-                    <div className="motorista-evolution">
-                      {dailyEvolution.map((item) => (
-                        <div
-                          className="motorista-evolution-row"
-                          key={item.date}
-                        >
-                          <time>{dateLabel(item.date)}</time>
-                          <div>
-                            <span className="gain">+ {money(item.gains)}</span>
-                            <span className="cost">− {money(item.costs)}</span>
-                            <strong
-                              className={item.balance < 0 ? "negative" : ""}
-                            >
-                              {money(item.balance)}
-                            </strong>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {dailyEvolution.length >= 3660 && (
-                      <p className="motorista-muted">
-                        Intervalo limitado a 3.660 dias. Reduza o filtro para
-                        ver o restante.
-                      </p>
-                    )}
                   </div>
                 </div>
               </section>
             )}
 
-            {tab === "dia" && (
+            {tab === "ganhos" && (
               <section className="motorista-section">
                 <div className="motorista-title-row">
                   <div>
-                    <p className="motorista-eyebrow">Registro diário</p>
-                    <h1>Como foi o dia?</h1>
+                    <p className="motorista-eyebrow">Entradas</p>
+                    <h1>Ganhos</h1>
                     <p className="motorista-muted">
-                      Selecione uma data passada para corrigir seus lançamentos.
-                      Valores de Uber e 99 são os totais exibidos nos
-                      aplicativos.
+                      Ganhos e dados de trabalho organizados por dia.
                     </p>
                   </div>
+                  <div className="motorista-actions motorista-quick-actions">
+                    <button
+                      className="motorista-primary"
+                      onClick={() => newGain()}
+                    >
+                      Registrar ganho
+                    </button>
+                    <button
+                      className="motorista-secondary"
+                      onClick={() => editDay(localDate())}
+                    >
+                      Registrar dados do dia
+                    </button>
+                  </div>
                 </div>
-                <form
-                  className="motorista-card motorista-form"
-                  onSubmit={saveDay}
-                >
-                  <label>
-                    Data
-                    <input
-                      type="date"
-                      value={dayDate}
-                      onChange={(event) => setDayDate(event.target.value)}
-                      required
-                    />
-                  </label>
-                  <div className="motorista-form-grid">
-                    <fieldset>
-                      <legend>Uber</legend>
-                      <label>
-                        Ganhos (R$)
-                        <input
-                          inputMode="decimal"
-                          placeholder="0,00"
-                          value={dayForm.uber}
-                          onChange={(event) =>
-                            setDayForm({ ...dayForm, uber: event.target.value })
-                          }
-                        />
-                      </label>
-                      <label>
-                        Corridas
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          placeholder="0"
-                          value={dayForm.uberRides}
-                          onChange={(event) =>
-                            setDayForm({
-                              ...dayForm,
-                              uberRides: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                    </fieldset>
-                    <fieldset>
-                      <legend>99</legend>
-                      <label>
-                        Ganhos (R$)
-                        <input
-                          inputMode="decimal"
-                          placeholder="0,00"
-                          value={dayForm.ninetyNine}
-                          onChange={(event) =>
-                            setDayForm({
-                              ...dayForm,
-                              ninetyNine: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <label>
-                        Corridas
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          placeholder="0"
-                          value={dayForm.ninetyNineRides}
-                          onChange={(event) =>
-                            setDayForm({
-                              ...dayForm,
-                              ninetyNineRides: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                    </fieldset>
+                <div className="motorista-list-controls">
+                  <div className="motorista-card motorista-period-total">
+                    <span>Total de ganhos no período</span>
+                    <strong>{gainsPeriodValid ? money(gainsTotal) : "—"}</strong>
                   </div>
-                  <div className="motorista-form-grid">
-                    <label>
-                      Outros ganhos (R$)
-                      <input
-                        inputMode="decimal"
-                        placeholder="0,00"
-                        value={dayForm.other}
-                        onChange={(event) =>
-                          setDayForm({ ...dayForm, other: event.target.value })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Horas trabalhadas
-                      <input
-                        inputMode="decimal"
-                        placeholder="Ex.: 8,5"
-                        value={dayForm.hours}
-                        onChange={(event) =>
-                          setDayForm({ ...dayForm, hours: event.target.value })
-                        }
-                      />
-                    </label>
-                    <label>
-                      Quilômetros rodados
-                      <input
-                        inputMode="decimal"
-                        placeholder="Ex.: 145,5"
-                        value={dayForm.km}
-                        onChange={(event) =>
-                          setDayForm({ ...dayForm, km: event.target.value })
-                        }
-                      />
-                    </label>
+                  <PeriodFilter
+                    selection={gainsPeriod}
+                    onChange={setGainsPeriod}
+                  />
+                </div>
+                {registeredDays.length === 0 ? (
+                  <div className="motorista-card">
+                    <p className="motorista-muted">
+                      {gainsPeriodValid
+                        ? "Nenhum ganho ou dado de dia neste período."
+                        : "Selecione um período válido."}
+                    </p>
                   </div>
-                  <button className="motorista-primary" disabled={saving}>
-                    {saving
-                      ? "Salvando…"
-                      : days.some((item) => item.date === dayDate)
-                        ? "Atualizar dia"
-                        : "Salvar dia"}
-                  </button>
-                </form>
+                ) : (
+                  registeredDays.map((day) => (
+                    <div
+                      className="motorista-card motorista-day-group"
+                      key={day.date}
+                    >
+                      <div className="motorista-day-heading">
+                        <div className="motorista-day-heading-info">
+                          <h2>{dateLabel(day.date)}</h2>
+                          <span>
+                            Total do dia:{" "}
+                            <strong>
+                              {money(
+                                day.uberCents +
+                                  day.ninetyNineCents +
+                                  day.otherCents,
+                              )}
+                            </strong>
+                          </span>
+                        </div>
+                        <button
+                          className="motorista-secondary"
+                          onClick={() => newGain(day.date)}
+                        >
+                          Registrar ganho
+                        </button>
+                      </div>
+                      {legacyGains([day]).map((gain) => (
+                        <div className="motorista-day-row" key={gain.id}>
+                          <span className="motorista-day-value">
+                            <strong>
+                              {gain.source === "ninetyNine"
+                                ? "99"
+                                : gain.source === "uber"
+                                  ? "Uber"
+                                  : "Outros"}
+                            </strong>
+                            <span>{money(gain.cents)}</span>
+                          </span>
+                          <div className="motorista-actions motorista-icon-actions">
+                            <button
+                              className="motorista-icon-button"
+                              type="button"
+                              aria-label={
+                                "Editar ganho de " +
+                                (gain.source === "ninetyNine"
+                                  ? "99"
+                                  : gain.source === "uber"
+                                    ? "Uber"
+                                    : "Outros") +
+                                " de " +
+                                dateLabel(day.date)
+                              }
+                              title="Editar ganho"
+                              onClick={() => editGain(gain)}
+                            >
+                              <EditIcon />
+                            </button>
+                            <button
+                              className="motorista-icon-button motorista-danger"
+                              type="button"
+                              aria-label={
+                                "Excluir ganho de " +
+                                (gain.source === "ninetyNine"
+                                  ? "99"
+                                  : gain.source === "uber"
+                                    ? "Uber"
+                                    : "Outros") +
+                                " de " +
+                                dateLabel(day.date)
+                              }
+                              title="Excluir ganho"
+                              onClick={() => removeGain(gain)}
+                              disabled={saving}
+                            >
+                              <DeleteIcon />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="motorista-day-row motorista-day-stats">
+                        <div>
+                          <strong>Dados do dia</strong>
+                          <span>
+                            Horas trabalhadas:{" "}
+                            {day.minutes
+                              ? decimal(day.minutes / 60, 2) + " h"
+                              : "—"}
+                          </span>
+                          <span>
+                            KM rodados:{" "}
+                            {day.km ? decimal(day.km, 1) + " km" : "—"}
+                          </span>
+                          <span>
+                            Consumo:{" "}
+                            {day.consumption
+                              ? decimal(day.consumption, 2) + " km/L"
+                              : "—"}
+                          </span>
+                        </div>
+                        <button
+                          className="motorista-icon-button"
+                          type="button"
+                          aria-label={
+                            "Editar dados do dia " + dateLabel(day.date)
+                          }
+                          title="Editar dados do dia"
+                          onClick={() => editDay(day.date)}
+                        >
+                          <EditIcon />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </section>
             )}
-
             {tab === "gastos" && (
               <section className="motorista-section">
                 <div className="motorista-title-row">
                   <div>
                     <p className="motorista-eyebrow">Despesas</p>
-                    <h1>Gastos e categorias</h1>
+                    <h1>Gastos</h1>
                     <p className="motorista-muted">
-                      Registre quantos gastos precisar, mesmo sem jornada no
-                      dia. Cada valor entra integralmente na data informada.
+                      Gastos organizados por dia, inclusive sem jornada
+                      registrada.
+                    </p>
+                  </div>
+                  <div className="motorista-actions motorista-quick-actions motorista-single-action">
+                    <button
+                      className="motorista-primary"
+                      onClick={() => newExpense()}
+                    >
+                      Registrar gasto
+                    </button>
+                  </div>
+                </div>
+                <div className="motorista-list-controls">
+                  <div className="motorista-card motorista-period-total">
+                    <span>Total de gastos no período</span>
+                    <strong>
+                      {expensesPeriodValid ? money(expensesTotal) : "—"}
+                    </strong>
+                  </div>
+                  <PeriodFilter
+                    selection={expensesPeriod}
+                    onChange={setExpensesPeriod}
+                  />
+                </div>
+                {expenseDays.length === 0 ? (
+                  <div className="motorista-card">
+                    <p className="motorista-muted">
+                      {expensesPeriodValid
+                        ? "Nenhum gasto neste período."
+                        : "Selecione um período válido."}
+                    </p>
+                  </div>
+                ) : (
+                  expenseDays.map(({ date, items, total }) => (
+                    <div
+                      className="motorista-card motorista-day-group"
+                      key={date}
+                    >
+                      <div className="motorista-day-heading">
+                        <div className="motorista-day-heading-info">
+                          <h2>{dateLabel(date)}</h2>
+                          <span>
+                            Total do dia: <strong>{money(total)}</strong>
+                          </span>
+                        </div>
+                        <button
+                          className="motorista-secondary"
+                          onClick={() => newExpense(date)}
+                        >
+                          Registrar gasto
+                        </button>
+                      </div>
+                      {items.map((item) => {
+                        const category =
+                          categories.find(
+                            (entry) => entry.id === item.categoryId,
+                          )?.name ?? item.categoryId;
+                        return (
+                          <div
+                            className="motorista-day-row motorista-expense-day-row"
+                            key={item.id}
+                          >
+                            <div className="motorista-expense-details">
+                              <strong>{category}</strong>
+                              {item.note && <small>{item.note}</small>}
+                            </div>
+                            <strong>{money(item.cents)}</strong>
+                            <div className="motorista-actions motorista-icon-actions">
+                              <button
+                                className="motorista-icon-button"
+                                type="button"
+                                aria-label={`Editar gasto de ${category} de ${dateLabel(date)}`}
+                                title="Editar gasto"
+                                onClick={() => editExpense(item)}
+                              >
+                                <EditIcon />
+                              </button>
+                              <button
+                                className="motorista-icon-button motorista-danger"
+                                type="button"
+                                aria-label={`Excluir gasto de ${category} de ${dateLabel(date)}`}
+                                title="Excluir gasto"
+                                onClick={() => removeExpense(item)}
+                                disabled={saving}
+                              >
+                                <DeleteIcon />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))
+                )}
+              </section>
+            )}
+
+            {tab === "definicoes" && (
+              <section className="motorista-section">
+                <div className="motorista-title-row">
+                  <div>
+                    <p className="motorista-eyebrow">Preferências</p>
+                    <h1>Definições</h1>
+                    <p className="motorista-muted">
+                      Defina a meta mensal de saldo e organize as categorias dos
+                      gastos.
                     </p>
                   </div>
                 </div>
-                <div className="motorista-grid">
+                <div className="motorista-grid motorista-settings-grid">
                   <form
                     className="motorista-card motorista-form"
-                    onSubmit={saveExpense}
+                    onSubmit={saveGoal}
                   >
-                    <h2>{expenseForm.id ? "Editar gasto" : "Novo gasto"}</h2>
+                    <h2>Qual sua meta mensal?</h2>
                     <label>
-                      Data
-                      <input
-                        type="date"
-                        value={expenseForm.date}
-                        onChange={(event) =>
-                          setExpenseForm({
-                            ...expenseForm,
-                            date: event.target.value,
-                          })
-                        }
+                      Meta mensal de saldo (R$)
+                      <MoneyInput
+                        value={goalInput}
+                        onChange={setGoalDraft}
                         required
                       />
+                      <small>
+                        Vale deste mês em diante, até você alterar o valor.
+                      </small>
                     </label>
-                    <label>
-                      Categoria
-                      <select
-                        value={expenseForm.categoryId}
-                        onChange={(event) =>
-                          setExpenseForm({
-                            ...expenseForm,
-                            categoryId: event.target.value,
-                          })
-                        }
-                      >
-                        {categories.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Valor (R$)
-                      <input
-                        inputMode="decimal"
-                        placeholder="0,00"
-                        value={expenseForm.value}
-                        onChange={(event) =>
-                          setExpenseForm({
-                            ...expenseForm,
-                            value: event.target.value,
-                          })
-                        }
-                        required
-                      />
-                    </label>
-                    <label>
-                      Observação (opcional)
-                      <textarea
-                        maxLength={500}
-                        value={expenseForm.note}
-                        onChange={(event) =>
-                          setExpenseForm({
-                            ...expenseForm,
-                            note: event.target.value,
-                          })
-                        }
-                        rows={3}
-                      />
-                    </label>
-                    <div className="motorista-actions">
-                      <button className="motorista-primary" disabled={saving}>
-                        {saving
-                          ? "Salvando…"
-                          : expenseForm.id
-                            ? "Atualizar gasto"
-                            : "Salvar gasto"}
-                      </button>
-                      {expenseForm.id && (
-                        <button
-                          type="button"
-                          className="motorista-secondary"
-                          onClick={() =>
-                            setExpenseForm({
-                              id: "",
-                              date: today,
-                              categoryId: "combustivel",
-                              value: "",
-                              note: "",
-                            })
-                          }
-                        >
-                          Cancelar edição
-                        </button>
-                      )}
-                    </div>
+                    <button className="motorista-primary" disabled={saving}>
+                      {saving ? "Salvando…" : "Salvar meta"}
+                    </button>
                   </form>
                   <div className="motorista-card">
                     <h2>Categorias</h2>
@@ -1101,12 +1359,15 @@ export default function MotoristaApp() {
                             <>
                               <span>{item.name}</span>
                               <button
+                                className="motorista-icon-button"
+                                aria-label={`Editar categoria ${item.name}`}
+                                title="Editar categoria"
                                 onClick={() => {
                                   setCategoryEdit(item.id);
                                   setCategoryName(item.name);
                                 }}
                               >
-                                Editar
+                                <EditIcon />
                               </button>
                             </>
                           )}
@@ -1131,172 +1392,6 @@ export default function MotoristaApp() {
                     </div>
                   </div>
                 </div>
-                <div className="motorista-card">
-                  <h2>Lançamentos</h2>
-                  <div className="motorista-expense-list">
-                    {[...expenses]
-                      .sort((a, b) => b.date.localeCompare(a.date))
-                      .map((item) => (
-                        <div className="motorista-expense-row" key={item.id}>
-                          <div>
-                            <strong>
-                              {categories.find(
-                                (category) => category.id === item.categoryId,
-                              )?.name ?? item.categoryId}
-                            </strong>
-                            <small>
-                              {dateLabel(item.date)}
-                              {item.note ? ` · ${item.note}` : ""}
-                            </small>
-                          </div>
-                          <strong>{money(item.cents)}</strong>
-                          <div className="motorista-actions">
-                            <button
-                              onClick={() => {
-                                setExpenseForm({
-                                  id: item.id,
-                                  date: item.date,
-                                  categoryId: item.categoryId,
-                                  value: moneyInput(item.cents),
-                                  note: item.note,
-                                });
-                                window.scrollTo({ top: 0, behavior: "smooth" });
-                              }}
-                            >
-                              Editar
-                            </button>
-                            <button
-                              className="motorista-danger"
-                              onClick={() => removeExpense(item)}
-                              disabled={saving}
-                            >
-                              Excluir
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    {expenses.length === 0 && (
-                      <p className="motorista-muted">Ainda não há gastos.</p>
-                    )}
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {tab === "meta" && (
-              <section className="motorista-section">
-                <div className="motorista-title-row">
-                  <div>
-                    <p className="motorista-eyebrow">Planejamento</p>
-                    <h1>Meta de saldo mensal</h1>
-                    <p className="motorista-muted">
-                      Cada mês tem sua própria meta. O saldo soma ganhos de
-                      Uber, 99 e Outros e subtrai todos os gastos registrados.
-                    </p>
-                  </div>
-                </div>
-                <div className="motorista-grid">
-                  <form
-                    className="motorista-card motorista-form"
-                    onSubmit={saveGoal}
-                  >
-                    <h2>Definir meta</h2>
-                    <label>
-                      Mês
-                      <input
-                        type="month"
-                        value={goalMonth}
-                        onChange={(event) => setGoalMonth(event.target.value)}
-                        required
-                      />
-                    </label>
-                    <label>
-                      Meta de saldo (R$)
-                      <input
-                        inputMode="decimal"
-                        placeholder="0,00"
-                        value={goalInput}
-                        onChange={(event) => setGoalInput(event.target.value)}
-                        required
-                      />
-                    </label>
-                    <button className="motorista-primary" disabled={saving}>
-                      {saving ? "Salvando…" : "Salvar meta"}
-                    </button>
-                  </form>
-                  <div className="motorista-card">
-                    <h2>Progresso de {goalMonth}</h2>
-                    {goal > 0 ? (
-                      <>
-                        <DataRow label="Meta" value={money(goal)} />
-                        <DataRow
-                          label="Saldo acumulado"
-                          value={money(monthTotals.balance)}
-                        />
-                        <DataRow label="Falta" value={money(plan.missing)} />
-                        <div
-                          className="motorista-progress"
-                          role="progressbar"
-                          aria-valuenow={Math.max(
-                            0,
-                            Math.min(100, Math.round(plan.percent)),
-                          )}
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                        >
-                          <span
-                            style={{
-                              width: `${Math.max(0, Math.min(100, plan.percent))}%`,
-                            }}
-                          />
-                        </div>
-                        <strong>{decimal(plan.percent, 1)}% atingido</strong>
-                      </>
-                    ) : (
-                      <p className="motorista-muted">
-                        Defina a meta deste mês para acompanhar o progresso.
-                      </p>
-                    )}
-                  </div>
-                </div>
-                {goal > 0 && (
-                  <div className="motorista-card">
-                    <h2>Referências estimadas</h2>
-                    <p className="motorista-muted">
-                      Planejamento com média de cinco dias de trabalho por
-                      semana. Você escolhe livremente os dias e pode trabalhar
-                      mais ou menos.
-                    </p>
-                    <div className="motorista-stats">
-                      <Metric
-                        label="Dias estimados no mês"
-                        value={String(plan.estimatedDays)}
-                      />
-                      <Metric
-                        label="Referência diária inicial"
-                        value={money(plan.daily ?? 0)}
-                      />
-                      <Metric
-                        label="Referência semanal inicial"
-                        value={money(plan.weekly ?? 0)}
-                      />
-                      <Metric
-                        label="Necessidade diária restante"
-                        value={
-                          plan.requiredDaily === null
-                            ? "Mês encerrado"
-                            : money(plan.requiredDaily)
-                        }
-                      />
-                    </div>
-                    <p className="motorista-muted">
-                      Restam aproximadamente {plan.remainingWorkDays} dias de
-                      trabalho entre hoje e o fim do mês. O dia atual entra na
-                      conta. Quando não houver dias restantes, o resultado final
-                      é o saldo acumulado acima.
-                    </p>
-                  </div>
-                )}
               </section>
             )}
 
@@ -1356,10 +1451,13 @@ export default function MotoristaApp() {
                     {backup && (
                       <>
                         <p>
-                          Prévia: <strong>{backup.days.length}</strong> dias,{" "}
-                          <strong>{backup.expenses.length}</strong> gastos,{" "}
-                          <strong>{backup.categories.length}</strong> categorias
-                          e <strong>{backup.goals.length}</strong> metas.
+                          Prévia: <strong>{backup.days.length}</strong> dados de
+                          dia,{" "}
+                          <strong>{legacyGains(backup.days).length}</strong>{" "}
+                          ganhos, <strong>{backup.expenses.length}</strong>{" "}
+                          gastos, <strong>{backup.categories.length}</strong>{" "}
+                          categorias e <strong>{backup.goals.length}</strong>{" "}
+                          metas.
                         </p>
                         <p className="motorista-muted">
                           Data da cópia:{" "}
@@ -1372,7 +1470,7 @@ export default function MotoristaApp() {
                               ),
                             ).length
                           }{" "}
-                          dias,{" "}
+                          dados de dia,{" "}
                           {
                             backup.expenses.filter((item) =>
                               expenses.some(
@@ -1431,43 +1529,424 @@ export default function MotoristaApp() {
             )}
           </>
         )}
+        {modal && (
+          <dialog
+            ref={modalRef}
+            className="motorista-dialog"
+            aria-labelledby="motorista-dialog-title"
+            onCancel={() => setModal(null)}
+          >
+            <div className="motorista-dialog-header">
+              <h2 id="motorista-dialog-title">
+                {modal === "gain"
+                  ? gainForm.id
+                    ? "Editar ganho"
+                    : "Registrar ganho"
+                  : modal === "expense"
+                    ? expenseForm.id
+                      ? "Editar gasto"
+                      : "Registrar gasto"
+                  : days.some((day) => day.date === dayDate)
+                    ? "Editar dados do dia"
+                    : "Registrar dados do dia"}
+              </h2>
+              <button
+                type="button"
+                className="motorista-icon-button"
+                aria-label="Fechar"
+                onClick={() => setModal(null)}
+              >
+                ×
+              </button>
+            </div>
+            {notice &&
+              (notice.startsWith("Não") ||
+                notice.startsWith("Revise") ||
+                notice.startsWith("Informe")) && (
+                <p role="alert" className="motorista-alert error">
+                  {notice}
+                </p>
+              )}
+            {modal === "gain" ? (
+              <form className="motorista-form" onSubmit={saveGain}>
+                <label>
+                  Data
+                  <PickerInput
+                    type="date"
+                    value={gainForm.date}
+                    required
+                    onChange={(event) =>
+                      setGainForm({ ...gainForm, date: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  Origem
+                  <select
+                    value={gainForm.source}
+                    onChange={(event) =>
+                      setGainForm({
+                        ...gainForm,
+                        source: event.target.value as Gain["source"],
+                      })
+                    }
+                  >
+                    <option value="uber">Uber</option>
+                    <option value="ninetyNine">99</option>
+                    <option value="other">Outros</option>
+                  </select>
+                </label>
+                <label>
+                  Valor (R$)
+                  <MoneyInput
+                    value={gainValue}
+                    onChange={setGainValue}
+                    required
+                  />
+                </label>
+                <div className="motorista-actions motorista-dialog-actions">
+                  <button
+                    type="button"
+                    className="motorista-secondary"
+                    onClick={() => setModal(null)}
+                  >
+                    Cancelar
+                  </button>
+                  <button className="motorista-primary" disabled={saving}>
+                    {saving ? "Salvando…" : "Salvar ganho"}
+                  </button>
+                </div>
+              </form>
+            ) : modal === "expense" ? (
+              <form className="motorista-form" onSubmit={saveExpense}>
+                <label>
+                  Data
+                  <PickerInput
+                    type="date"
+                    value={expenseForm.date}
+                    onChange={(event) =>
+                      setExpenseForm({ ...expenseForm, date: event.target.value })
+                    }
+                    required
+                  />
+                </label>
+                <label>
+                  Categoria
+                  <select
+                    value={expenseForm.categoryId}
+                    onChange={(event) =>
+                      setExpenseForm({
+                        ...expenseForm,
+                        categoryId: event.target.value,
+                      })
+                    }
+                  >
+                    {categories.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Valor (R$)
+                  <MoneyInput
+                    value={expenseForm.value}
+                    onChange={(value) => setExpenseForm({ ...expenseForm, value })}
+                    required
+                  />
+                </label>
+                <label>
+                  Observação (opcional)
+                  <textarea
+                    maxLength={500}
+                    value={expenseForm.note}
+                    onChange={(event) =>
+                      setExpenseForm({ ...expenseForm, note: event.target.value })
+                    }
+                    rows={3}
+                  />
+                </label>
+                <div className="motorista-actions motorista-dialog-actions">
+                  <button
+                    type="button"
+                    className="motorista-secondary"
+                    onClick={() => setModal(null)}
+                  >
+                    Cancelar
+                  </button>
+                  <button className="motorista-primary" disabled={saving}>
+                    {saving ? "Salvando…" : "Salvar gasto"}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form className="motorista-form" onSubmit={saveDay}>
+                <label>
+                  Data
+                  <PickerInput
+                    type="date"
+                    value={dayDate}
+                    onChange={(event) => setDayDate(event.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  Horas trabalhadas
+                  <input
+                    inputMode="decimal"
+                    placeholder="Ex.: 8,5"
+                    value={dayForm.hours}
+                    onChange={(event) =>
+                      setDayForm({ ...dayForm, hours: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  KM rodados
+                  <input
+                    inputMode="decimal"
+                    placeholder="Ex.: 145,5"
+                    value={dayForm.km}
+                    onChange={(event) =>
+                      setDayForm({ ...dayForm, km: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  Consumo (km/L)
+                  <input
+                    inputMode="decimal"
+                    placeholder="Ex.: 12,5"
+                    value={dayForm.consumption}
+                    onChange={(event) =>
+                      setDayForm({
+                        ...dayForm,
+                        consumption: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <div className="motorista-actions motorista-dialog-actions">
+                  <button
+                    type="button"
+                    className="motorista-secondary"
+                    onClick={() => setModal(null)}
+                  >
+                    Cancelar
+                  </button>
+                  <button className="motorista-primary" disabled={saving}>
+                    {saving ? "Salvando…" : "Salvar dados do dia"}
+                  </button>
+                </div>
+              </form>
+            )}
+          </dialog>
+        )}
       </div>
     </main>
   );
 }
 
-function Metric({
-  label,
+function MoneyInput({
   value,
-  emphasis,
+  onChange,
+  required = false,
 }: {
-  label: string;
   value: string;
-  emphasis?: "positive" | "negative";
+  onChange: (value: string) => void;
+  required?: boolean;
 }) {
   return (
-    <div className={`motorista-metric ${emphasis ?? ""}`}>
+    <input
+      type="text"
+      className="motorista-money-input"
+      inputMode="numeric"
+      autoComplete="off"
+      placeholder="R$ 0,00"
+      value={value}
+      onChange={(event) => onChange(maskMoney(event.target.value))}
+      onFocus={(event) => event.target.select()}
+      onPaste={(event) => {
+        event.preventDefault();
+        const cents = parseCents(event.clipboardData.getData("text"));
+        if (Number.isSafeInteger(cents) && cents >= 0)
+          onChange(cents ? money(cents) : "");
+      }}
+      required={required}
+    />
+  );
+}
+
+function PeriodFilter({
+  selection,
+  onChange,
+}: {
+  selection: PeriodSelection;
+  onChange: (selection: PeriodSelection) => void;
+}) {
+  const bounds = selectedBounds(selection);
+  const weekLabel = validBounds(bounds)
+    ? `${dateLabel(bounds.from)} a ${dateLabel(bounds.to)}`
+    : "Selecione uma semana";
+  const update = (change: Partial<PeriodSelection>) =>
+    onChange({ ...selection, ...change });
+
+  return (
+    <div
+      className={`motorista-card motorista-filters ${selection.filter === "custom" ? "is-custom" : ""}`}
+    >
+      <label>
+        Período
+        <select
+          value={selection.filter}
+          onChange={(event) => update({ filter: event.target.value as Filter })}
+        >
+          <option value="day">Dia</option>
+          <option value="week">Semana</option>
+          <option value="month">Mês</option>
+          <option value="custom">Personalizado</option>
+        </select>
+      </label>
+      {selection.filter === "custom" ? (
+        <>
+          <label>
+            De
+            <PickerInput
+              type="date"
+              value={selection.from}
+              onChange={(event) => update({ from: event.target.value })}
+            />
+          </label>
+          <label>
+            Até
+            <PickerInput
+              type="date"
+              value={selection.to}
+              onChange={(event) => update({ to: event.target.value })}
+            />
+          </label>
+        </>
+      ) : selection.filter === "day" ? (
+        <label>
+          Dia
+          <PickerInput
+            type="date"
+            value={selection.anchor}
+            onChange={(event) => update({ anchor: event.target.value })}
+          />
+        </label>
+      ) : selection.filter === "week" ? (
+        <label>
+          Semana
+          <PickerInput
+            type="week"
+            value={selection.week}
+            displayValue={weekLabel}
+            aria-label={`Semana: ${weekLabel}`}
+            onChange={(event) => update({ week: event.target.value })}
+          />
+        </label>
+      ) : (
+        <label>
+          Mês
+          <PickerInput
+            type="month"
+            value={selection.month}
+            onChange={(event) => update({ month: event.target.value })}
+          />
+        </label>
+      )}
+    </div>
+  );
+}
+
+function PickerInput({
+  type,
+  displayValue,
+  ...props
+}: Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & {
+  type: "date" | "week" | "month";
+  displayValue?: string;
+}) {
+  const openPicker = (event: MouseEvent<HTMLInputElement>) => {
+    try {
+      event.currentTarget.showPicker();
+    } catch {
+      event.currentTarget.focus();
+    }
+  };
+
+  return (
+    <span className={`motorista-picker${displayValue ? " is-formatted" : ""}`}>
+      <input {...props} type={type} onClick={openPicker} />
+      {displayValue && (
+        <span className="motorista-picker-value" aria-hidden="true">
+          {displayValue}
+        </span>
+      )}
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M7 3v4M17 3v4M3 10h18" />
+      </svg>
+    </span>
+  );
+}
+
+function TabIcon({ tab }: { tab: Tab }) {
+  const paths: Record<Tab, React.ReactNode> = {
+    resumo: <><path d="M3 11.5 12 4l9 7.5V20H3v-8.5Z" /><path d="M8 20v-6h8v6" /></>,
+    ganhos: <><path d="M3 17.5 9 11l4 4 8-8" /><path d="M16 7h5v5" /></>,
+    gastos: <><path d="M3 7h18v12H3z" /><path d="M3 10h18M16 15h2" /></>,
+    definicoes: <><path d="M4 7h16M4 17h16" /><circle cx="9" cy="7" r="2" /><circle cx="15" cy="17" r="2" /></>,
+    backup: <><path d="M5 14a7 7 0 1 0 1-6" /><path d="M5 4v4h4M12 8v5l3 2" /></>,
+  };
+
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      {paths[tab]}
+    </svg>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="motorista-metric">
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
   );
 }
-function DataRow({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: string;
-  detail?: string;
-}) {
+
+function EditIcon() {
   return (
-    <div className="motorista-data-row">
-      <div>
-        <span>{label}</span>
-        {detail && <small>{detail}</small>}
-      </div>
-      <strong>{value}</strong>
-    </div>
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L9 17l-4 1 1-4L16.5 3.5Z" />
+    </svg>
+  );
+}
+
+function DeleteIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 6h18M8 6V4h8v2M5 6l1 15h12l1-15M10 10v7M14 10v7" />
+    </svg>
   );
 }

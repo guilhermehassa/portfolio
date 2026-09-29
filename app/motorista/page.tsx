@@ -1,5 +1,12 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import MotoristaApp from "@/components/motorista/motorista-app";
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#eef3fb" },
+    { media: "(prefers-color-scheme: dark)", color: "#081225" },
+  ],
+};
 
 export const metadata: Metadata = {
   title: "Motorista | Controle financeiro",

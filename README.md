@@ -23,8 +23,15 @@ usa a região `southamerica-east1` e o app requer conexão para ler e gravar.
 Um novo deploy do site não altera os dados. Para mudar o proprietário, atualize o UID tanto no
 arquivo de regras quanto em `lib/motorista-firebase.ts`, publique as novas regras no Firebase e
 faça o deploy do site. O login Google aceita `localhost` e `hassa.dev.br` como domínios autorizados.
-O backup JSON exporta dias, gastos, categorias e metas; a reimportação preserva itens com IDs
-iguais por padrão.
+Ganhos de Uber, 99 e Outros e dados de jornada (horas, quilômetros e consumo em km/L)
+ficam em um registro por data na coleção `days`. O backup JSON exporta esses registros,
+gastos, categorias e metas; a reimportação preserva itens com IDs iguais por padrão e
+aceita backups antigos.
+
+No celular, abra `https://hassa.dev.br/motorista` e use **Instalar aplicativo** no menu do
+Chrome para criar um atalho que abre em tela própria. No iPhone, use **Compartilhar** →
+**Adicionar à Tela de Início** no Safari. O aplicativo continua exigindo conexão para login,
+leitura e gravação dos dados. O manifesto e os ícones são exclusivos da área do motorista.
 
 ## Requisitos
 

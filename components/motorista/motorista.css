@@ -1,9 +1,58 @@
 .motorista {
+  --motorista-bg: #eef3fb;
+  --motorista-surface: #fff;
+  --motorista-surface-soft: #f5f8ff;
+  --motorista-text: #0f1b36;
+  --motorista-muted: #52627f;
+  --motorista-border: #d3deef;
+  --motorista-border-soft: #e5ebf5;
+  --motorista-accent: #2148b6;
+  --motorista-button: #2148b6;
+  --motorista-button-hover: #1d3b8f;
+  --motorista-accent-text: #1d3b8f;
+  --motorista-danger-bg: #fbe9e5;
+  --motorista-danger-border: #f1d3cb;
+  --motorista-danger-text: #a73a27;
+  --motorista-goal-met: #1b7452;
+  --motorista-success-bg: #e4edff;
+  --motorista-alert-bg: #fff1dd;
+  --motorista-alert-text: #77501d;
+  --motorista-shadow: 0 5px 22px #0f1b360d;
+  color-scheme: light;
   min-height: 100vh;
   padding: 0 16px;
-  background: #f4f5f2;
-  color: #192920;
-  font-family: Arial, Helvetica, sans-serif;
+  background:
+    radial-gradient(circle at 12% 4%, #dce8ff 0, transparent 34%),
+    var(--motorista-bg);
+  color: var(--motorista-text);
+  font-family: var(--font-barlow), Arial, Helvetica, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  .motorista {
+    --motorista-bg: #081225;
+    --motorista-surface: #10203a;
+    --motorista-surface-soft: #162b4b;
+    --motorista-text: #eef5ff;
+    --motorista-muted: #b4c4df;
+    --motorista-border: #2b4266;
+    --motorista-border-soft: #253a5b;
+    --motorista-accent: #4d81f5;
+    --motorista-button: #2148b6;
+    --motorista-button-hover: #2f5dda;
+    --motorista-accent-text: #dce8ff;
+    --motorista-danger-bg: #3e2532;
+    --motorista-danger-border: #734052;
+    --motorista-danger-text: #ffb4a8;
+    --motorista-goal-met: #83ddb0;
+    --motorista-success-bg: #1b3561;
+    --motorista-alert-bg: #382c25;
+    --motorista-alert-text: #ffd49d;
+    --motorista-shadow: 0 8px 28px #02061759;
+    color-scheme: dark;
+    background:
+      radial-gradient(circle at 12% 4%, #142c55 0, transparent 36%),
+      var(--motorista-bg);
+  }
 }
 .motorista * {
   box-sizing: border-box;
@@ -35,8 +84,8 @@
   width: 42px;
   height: 42px;
   border-radius: 13px;
-  background: #234c3a;
-  color: #f7f7ee;
+  background: var(--motorista-button);
+  color: #fff;
   font-weight: 900;
   font-size: 22px;
 }
@@ -48,20 +97,20 @@
 .motorista-brand small {
   display: block;
   margin-top: 3px;
-  color: #68786d;
+  color: var(--motorista-muted);
   font-size: 11px;
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 .motorista-account {
-  color: #66766c;
+  color: var(--motorista-muted);
   font-size: 13px;
 }
 .motorista-account button,
 .motorista-text-button {
   border: 0;
   background: none;
-  color: #315f48;
+  color: var(--motorista-accent-text);
   font-weight: 700;
   cursor: pointer;
 }
@@ -70,9 +119,9 @@
   gap: 6px;
   overflow-x: auto;
   padding: 5px;
-  border: 1px solid #dde5dc;
+  border: 1px solid var(--motorista-border);
   border-radius: 14px;
-  background: #e9eee8;
+  background: var(--motorista-surface-soft);
   margin-bottom: 30px;
 }
 .motorista-tabs button {
@@ -81,15 +130,20 @@
   padding: 11px 14px;
   border: 0;
   border-radius: 10px;
-  color: #5c6d61;
+  color: var(--motorista-muted);
   background: transparent;
   font-weight: 700;
   cursor: pointer;
 }
 .motorista-tabs button.active {
-  background: #fff;
-  color: #234c3a;
-  box-shadow: 0 2px 10px #1b312013;
+  background: var(--motorista-surface);
+  color: var(--motorista-accent-text);
+  box-shadow: var(--motorista-shadow);
+}
+.motorista-tabs svg {
+  display: none;
+  width: 20px;
+  height: 20px;
 }
 .motorista-section {
   display: grid;
@@ -100,8 +154,15 @@
   margin: 4px 0 8px;
   gap: 24px;
 }
+.motorista-quick-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.motorista-quick-actions button {
+  white-space: nowrap;
+}
 .motorista-eyebrow {
-  color: #7e9665;
+  color: var(--motorista-accent);
   text-transform: uppercase;
   letter-spacing: 0.14em;
   font-size: 11px;
@@ -120,17 +181,17 @@
   letter-spacing: -0.02em;
 }
 .motorista-muted {
-  color: #66766c;
+  color: var(--motorista-muted);
   line-height: 1.5;
   font-size: 13px;
   margin: 0;
 }
 .motorista-card {
   padding: 22px;
-  border: 1px solid #dde5dc;
+  border: 1px solid var(--motorista-border);
   border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 5px 22px #1b31200a;
+  background: var(--motorista-surface);
+  box-shadow: var(--motorista-shadow);
   min-width: 0;
 }
 .motorista-grid {
@@ -140,8 +201,57 @@
 }
 .motorista-stats {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+.motorista-overview {
+  display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
+}
+.motorista-overview-card,
+.motorista-overview .motorista-metric {
+  min-height: 142px;
+}
+.motorista-overview-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.motorista-overview-card > span,
+.motorista-overview .motorista-metric span {
+  color: var(--motorista-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.motorista-overview-card > strong {
+  font-size: clamp(18px, 2.4vw, 26px);
+  letter-spacing: -0.04em;
+}
+.motorista-goal-value {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-wrap: anywhere;
+}
+.motorista-goal-value strong {
+  font-size: clamp(18px, 2.4vw, 26px);
+  letter-spacing: -0.04em;
+}
+.motorista-goal-value strong.met {
+  color: var(--motorista-goal-met);
+}
+.motorista-goal-value strong.behind {
+  color: var(--motorista-danger-text);
+}
+.motorista-goal-value span {
+  color: var(--motorista-muted);
+  font-size: 13px;
+}
+.motorista-overview-card small {
+  color: var(--motorista-muted);
+  font-size: 11px;
+  line-height: 1.4;
 }
 .motorista-metric {
   min-width: 0;
@@ -150,12 +260,12 @@
   justify-content: space-between;
   min-height: 102px;
   padding: 18px;
-  background: #fff;
-  border: 1px solid #dde5dc;
+  background: var(--motorista-surface);
+  border: 1px solid var(--motorista-border);
   border-radius: 16px;
 }
 .motorista-metric span {
-  color: #68776c;
+  color: var(--motorista-muted);
   font-size: 12px;
   font-weight: 700;
 }
@@ -164,15 +274,44 @@
   letter-spacing: -0.04em;
   overflow-wrap: anywhere;
 }
-.motorista-metric.positive {
-  background: #e5f1e6;
-  border-color: #d2e5d4;
-  color: #1d6840;
+.motorista-origin-list {
+  display: grid;
+  gap: 19px;
 }
-.motorista-metric.negative {
-  background: #fbe9e5;
-  border-color: #f1d3cb;
-  color: #a73a27;
+.motorista-origin-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.motorista-origin-label span {
+  color: var(--motorista-muted);
+  text-align: right;
+}
+.motorista-origin-track {
+  height: 11px;
+  border-radius: 999px;
+  background: var(--motorista-border);
+  overflow: hidden;
+}
+.motorista-origin-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+.motorista-origin-track .uber {
+  background: #1d3b8f;
+}
+.motorista-origin-track .ninety-nine {
+  background: #4d81f5;
+}
+.motorista-origin-track .other {
+  background: #85adff;
+}
+.motorista-origin-track .expense {
+  background: var(--motorista-danger-text);
 }
 .motorista-filters {
   display: flex;
@@ -184,10 +323,25 @@
   min-width: 180px;
   flex: 1;
 }
-.motorista-period {
-  font-size: 12px;
-  color: #66766c;
-  padding-bottom: 13px;
+.motorista-list-controls {
+  display: grid;
+  gap: 12px;
+}
+.motorista-period-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.motorista-period-total span {
+  color: var(--motorista-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+.motorista-period-total strong {
+  font-size: 24px;
+  letter-spacing: -0.03em;
 }
 .motorista label {
   display: flex;
@@ -195,18 +349,18 @@
   gap: 7px;
   font-size: 12px;
   font-weight: 700;
-  color: #4c5d51;
+  color: var(--motorista-muted);
 }
 .motorista input,
 .motorista select,
 .motorista textarea {
   width: 100%;
   min-height: 43px;
-  border: 1px solid #cbd8cc;
+  border: 1px solid var(--motorista-border);
   border-radius: 9px;
   padding: 9px 11px;
-  background: #fff;
-  color: #192920;
+  background: var(--motorista-surface);
+  color: var(--motorista-text);
   font: inherit;
   font-size: 15px;
   outline: none;
@@ -214,14 +368,83 @@
 .motorista input:focus,
 .motorista select:focus,
 .motorista textarea:focus {
-  border-color: #39825a;
-  box-shadow: 0 0 0 3px #39825a22;
+  border-color: var(--motorista-accent);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--motorista-accent) 22%, transparent);
+}
+.motorista-money-input {
+  font-variant-numeric: tabular-nums;
+}
+.motorista input[type="date"],
+.motorista input[type="week"],
+.motorista input[type="month"] {
+  min-height: 48px;
+  cursor: pointer;
+}
+.motorista-picker {
+  display: block;
+  position: relative;
+  width: 100%;
+}
+.motorista-picker input {
+  padding-right: 46px;
+}
+.motorista-picker.is-formatted input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  height: 100%;
+  opacity: 0;
+}
+.motorista-picker-value {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  padding: 9px 46px 9px 11px;
+  border: 1px solid var(--motorista-border);
+  border-radius: 9px;
+  background: var(--motorista-surface);
+  color: var(--motorista-text);
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.motorista-picker.is-formatted:focus-within .motorista-picker-value {
+  border-color: var(--motorista-accent);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--motorista-accent) 22%, transparent);
+}
+.motorista-picker svg {
+  position: absolute;
+  top: 50%;
+  right: 15px;
+  width: 19px;
+  height: 19px;
+  transform: translateY(-50%);
+  stroke: var(--motorista-accent-text);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.motorista input[type="date"]::-webkit-calendar-picker-indicator,
+.motorista input[type="week"]::-webkit-calendar-picker-indicator,
+.motorista input[type="month"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 .motorista textarea {
   resize: vertical;
 }
 .motorista label small {
-  color: #6a786d;
+  color: var(--motorista-muted);
   font-size: 11px;
   line-height: 1.4;
   font-weight: 400;
@@ -238,14 +461,14 @@
 .motorista fieldset {
   display: grid;
   gap: 13px;
-  border: 1px solid #dde5dc;
+  border: 1px solid var(--motorista-border);
   border-radius: 12px;
   margin: 0;
   padding: 17px;
 }
 .motorista legend {
   padding: 0 6px;
-  color: #234c3a;
+  color: var(--motorista-accent-text);
   font-size: 14px;
   font-weight: 800;
 }
@@ -262,84 +485,47 @@
   cursor: pointer;
 }
 .motorista-primary {
-  border: 1px solid #234c3a;
-  background: #234c3a;
+  border: 1px solid var(--motorista-button);
+  background: var(--motorista-button);
   color: #fff;
 }
 .motorista-primary:hover {
-  background: #326b4d;
+  background: var(--motorista-button-hover);
 }
 .motorista-secondary {
-  border: 1px solid #b9cebd;
-  background: #f8faf7;
-  color: #234c3a;
+  border: 1px solid var(--motorista-border);
+  background: var(--motorista-surface-soft);
+  color: var(--motorista-accent-text);
 }
 .motorista button:disabled {
   opacity: 0.58;
   cursor: wait;
 }
-.motorista-data-row,
-.motorista-category-row,
-.motorista-expense-row,
-.motorista-evolution-row {
+.motorista button:focus-visible {
+  outline: 2px solid var(--motorista-accent);
+  outline-offset: 2px;
+}
+.motorista-category-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-top: 1px solid #e8eee8;
+  border-top: 1px solid var(--motorista-border-soft);
   padding: 13px 0;
   font-size: 13px;
-}
-.motorista-data-row strong {
-  white-space: nowrap;
-}
-.motorista-data-row small,
-.motorista-expense-row small {
-  display: block;
-  margin-top: 4px;
-  color: #758278;
-  line-height: 1.4;
-  font-size: 11px;
-}
-.motorista-evolution {
-  max-height: 340px;
-  overflow-y: auto;
-}
-.motorista-evolution-row {
-  align-items: start;
-}
-.motorista-evolution-row time {
-  white-space: nowrap;
-  color: #68776c;
-}
-.motorista-evolution-row div {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: end;
-  gap: 6px 14px;
-  text-align: right;
-}
-.motorista-evolution-row .gain {
-  color: #287549;
-}
-.motorista-evolution-row .cost,
-.motorista-evolution-row .negative {
-  color: #af5542;
 }
 .motorista-category-list {
   max-height: 320px;
   overflow: auto;
 }
-.motorista-category-row button,
-.motorista-expense-row button {
+.motorista-category-row button {
   border: 0;
   background: none;
-  color: #315f48;
+  color: var(--motorista-accent-text);
   cursor: pointer;
   font-weight: 700;
 }
-.motorista-category-row button:hover,
-.motorista-expense-row button:hover {
+.motorista-category-row button:hover {
   text-decoration: underline;
 }
 .motorista-category-row span {
@@ -348,57 +534,173 @@
 .motorista-category-row input {
   flex: 1;
 }
-.motorista-expense-list {
-  max-height: 550px;
-  overflow: auto;
+.motorista .motorista-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  padding: 9px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--motorista-accent-text);
+  cursor: pointer;
 }
-.motorista-expense-row > div:first-child {
+.motorista .motorista-icon-button:hover {
+  border-color: var(--motorista-border);
+  background: var(--motorista-surface-soft);
+}
+.motorista .motorista-icon-button:focus-visible {
+  outline: 2px solid var(--motorista-accent);
+  outline-offset: 2px;
+}
+.motorista .motorista-icon-button.motorista-danger {
+  color: var(--motorista-danger-text);
+}
+.motorista-icon-button svg {
+  width: 20px;
+  height: 20px;
+}
+.motorista-icon-actions {
+  gap: 2px;
+}
+.motorista-day-group {
+  display: grid;
+  gap: 0;
+}
+.motorista-day-heading,
+.motorista-day-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.motorista-day-heading {
+  padding-bottom: 10px;
+}
+.motorista-day-heading h2 {
+  margin: 0;
+}
+.motorista-day-heading-info {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+.motorista-day-heading-info span {
+  color: var(--motorista-muted);
+  font-size: 13px;
+}
+.motorista-day-heading-info strong {
+  color: var(--motorista-text);
+}
+.motorista-day-row {
+  min-height: 56px;
+  padding: 9px 0;
+  border-top: 1px solid var(--motorista-border-soft);
+  font-size: 13px;
+}
+.motorista-day-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+}
+.motorista-expense-details {
+  display: grid;
   flex: 1;
   min-width: 0;
+  gap: 4px;
   overflow-wrap: anywhere;
 }
-.motorista-expense-row .motorista-danger {
-  color: #b04436;
+.motorista-expense-details small {
+  color: var(--motorista-muted);
+  line-height: 1.4;
 }
-.motorista-expense-row .motorista-actions {
-  gap: 4px;
+.motorista-expense-day-row > strong {
+  white-space: nowrap;
+}
+.motorista-day-stats > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+.motorista-day-stats strong {
+  width: 100%;
+}
+.motorista-day-stats span {
+  color: var(--motorista-muted);
+}
+.motorista-dialog {
+  width: min(500px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 22px;
+  overflow-y: auto;
+  border: 1px solid var(--motorista-border);
+  border-radius: 18px;
+  background: var(--motorista-surface);
+  color: var(--motorista-text);
+  box-shadow: 0 22px 70px #02061766;
+}
+.motorista-dialog::backdrop {
+  background: #020617aa;
+}
+.motorista-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.motorista-dialog-header h2 {
+  margin: 0;
+}
+.motorista-dialog-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.motorista-dialog .motorista-alert {
+  margin-bottom: 16px;
 }
 .motorista-progress {
-  height: 12px;
-  margin: 20px 0 8px;
-  background: #e6eee5;
+  height: 9px;
+  margin-top: 12px;
+  background: var(--motorista-border);
   border-radius: 999px;
   overflow: hidden;
 }
 .motorista-progress span {
   display: block;
   height: 100%;
-  background: #39825a;
+  background: var(--motorista-accent);
 }
 .motorista-alert {
   margin: 0 0 20px;
   padding: 13px 16px;
   border-radius: 10px;
-  background: #f8eadb;
-  color: #7b4a16;
+  background: var(--motorista-alert-bg);
+  color: var(--motorista-alert-text);
   font-size: 13px;
   overflow-wrap: anywhere;
 }
 .motorista-alert.success {
-  background: #e4f2e7;
-  color: #22603d;
+  background: var(--motorista-success-bg);
+  color: var(--motorista-accent-text);
 }
 .motorista-alert.error {
-  background: #f9e7e4;
-  color: #a53e2e;
+  background: var(--motorista-danger-bg);
+  color: var(--motorista-danger-text);
 }
 .motorista-loading {
   padding: 24px;
-  color: #68776c;
+  color: var(--motorista-muted);
 }
 .motorista-footer {
   margin-top: 40px;
-  color: #849087;
+  color: var(--motorista-muted);
   font-size: 11px;
   text-align: center;
 }
@@ -415,7 +717,7 @@
   margin-top: 24px;
 }
 .motorista-login p {
-  color: #66766c;
+  color: var(--motorista-muted);
   line-height: 1.6;
   margin: 0;
 }
@@ -423,48 +725,191 @@
   margin: 0;
 }
 @media (max-width: 760px) {
+  .motorista {
+    padding: 0 12px;
+  }
   .motorista-shell {
-    padding-top: 16px;
+    padding: 14px 0 calc(105px + env(safe-area-inset-bottom));
   }
   .motorista-header {
-    padding-bottom: 18px;
+    padding: 0 2px 18px;
+  }
+  .motorista-brand-mark {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    font-size: 20px;
+  }
+  .motorista-brand strong {
+    font-size: 17px;
+  }
+  .motorista-brand small {
+    font-size: 10px;
+    letter-spacing: .04em;
+  }
+  .motorista-account button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .motorista-tabs {
+    position: fixed;
+    z-index: 20;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 2px;
+    margin: 0;
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    border-width: 1px 0 0;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -8px 30px #08122522;
+    overflow: visible;
+  }
+  .motorista-tabs button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
+    min-height: 56px;
+    padding: 6px 2px;
+    border-radius: 11px;
+    font-size: 11px;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+  .motorista-tabs svg {
+    display: block;
+    flex: none;
   }
   .motorista-account span {
     display: none;
   }
+  .motorista-section {
+    gap: 14px;
+  }
   .motorista-title-row {
     align-items: start;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
+    margin: 0 2px 4px;
+  }
+  .motorista h1 {
+    font-size: clamp(27px, 7vw, 34px);
+  }
+  .motorista-quick-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 9px;
+  }
+  .motorista-single-action {
+    grid-template-columns: 1fr;
+  }
+  .motorista-quick-actions button {
+    min-height: 52px;
+    white-space: normal;
+    line-height: 1.2;
+    text-align: center;
   }
   .motorista-grid {
     grid-template-columns: 1fr;
+    gap: 14px;
   }
   .motorista-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .motorista-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .motorista-overview > :first-child,
+  .motorista-overview > :last-child {
+    grid-column: 1 / -1;
+  }
+  .motorista-overview-card,
+  .motorista-overview .motorista-metric {
+    min-height: 118px;
+  }
+  .motorista-overview-card:first-child {
+    min-height: 130px;
+  }
+  .motorista-overview-card > strong,
+  .motorista-goal-value strong,
+  .motorista-overview .motorista-metric strong {
+    font-size: clamp(20px, 6vw, 27px);
+  }
   .motorista-card {
-    padding: 17px;
+    padding: 16px;
+    border-radius: 16px;
   }
-  .motorista-tabs {
-    margin-bottom: 22px;
+  .motorista-filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
   }
-  .motorista-expense-row {
+  .motorista-filters > label {
+    min-width: 0;
+    grid-column: 1 / -1;
+  }
+  .motorista-filters.is-custom > label:not(:first-child) {
+    grid-column: auto;
+  }
+  .motorista input,
+  .motorista select,
+  .motorista textarea {
+    min-height: 48px;
+    font-size: 16px;
+  }
+  .motorista-primary,
+  .motorista-secondary {
+    min-height: 48px;
+    font-size: 14px;
+  }
+  .motorista-day-heading {
     flex-wrap: wrap;
   }
-  .motorista-expense-row .motorista-actions {
+  .motorista-day-heading button {
+    min-height: 44px;
+  }
+  .motorista-dialog {
+    position: fixed;
+    inset: auto 0 0;
     width: 100%;
-    justify-content: flex-end;
+    max-width: none;
+    max-height: calc(100dvh - 12px);
+    margin: 0;
+    padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
+    border-radius: 22px 22px 0 0;
+  }
+  .motorista-dialog-header {
+    position: sticky;
+    z-index: 1;
+    top: -20px;
+    padding: 8px 0 12px;
+    background: var(--motorista-surface);
+  }
+  .motorista-dialog-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+  .motorista-login {
+    min-height: calc(100dvh - 40px);
+  }
+  .motorista-expense-day-row {
+    flex-wrap: wrap;
   }
 }
 @media (max-width: 420px) {
+  .motorista-filters.is-custom > label:not(:first-child) {
+    grid-column: 1 / -1;
+  }
   .motorista-form-grid {
     grid-template-columns: 1fr;
-  }
-  .motorista-tabs button {
-    min-width: 0;
-    padding: 11px 3px;
-    font-size: 11px;
   }
   .motorista-stats {
     gap: 9px;
