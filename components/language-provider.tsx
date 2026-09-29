@@ -60,6 +60,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const copy = PORTFOLIO_CONTENT[locale];
 
   useEffect(() => {
+    if (window.location.pathname.startsWith("/motorista")) return;
     document.documentElement.lang = copy.langCode;
 
     // Next's metadata system re-asserts its own (locale-less, SSR-default)

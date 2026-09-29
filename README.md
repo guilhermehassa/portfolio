@@ -12,6 +12,20 @@ O site não tem servidor próprio, então o formulário posta num Cloudflare Wor
 variável `NEXT_PUBLIC_CONTACT_ENDPOINT`; sem ela, o formulário valida os campos e mostra um
 aviso pedindo contato por e-mail, em vez de postar num endpoint inexistente.
 
+## Controle financeiro do motorista
+
+`/motorista` é uma página estática fora da navegação do portfólio, com login Google e dados no
+Cloud Firestore do projeto `motorista-17946`. O acesso aos dados é restrito pelo UID do
+proprietário em [`firestore.rules`](firestore.rules), publicado também no Firebase. A configuração
+do app web em `lib/motorista-firebase.ts` é pública; a proteção depende das regras. O Firestore
+usa a região `southamerica-east1` e o app requer conexão para ler e gravar.
+
+Um novo deploy do site não altera os dados. Para mudar o proprietário, atualize o UID tanto no
+arquivo de regras quanto em `lib/motorista-firebase.ts`, publique as novas regras no Firebase e
+faça o deploy do site. O login Google aceita `localhost` e `hassa.dev.br` como domínios autorizados.
+O backup JSON exporta dias, gastos, categorias e metas; a reimportação preserva itens com IDs
+iguais por padrão.
+
 ## Requisitos
 
 - Node.js 20+

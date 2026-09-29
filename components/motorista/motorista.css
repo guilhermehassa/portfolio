@@ -1,0 +1,475 @@
+.motorista {
+  min-height: 100vh;
+  padding: 0 16px;
+  background: #f4f5f2;
+  color: #192920;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.motorista * {
+  box-sizing: border-box;
+}
+.motorista-shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px 0 40px;
+}
+.motorista-header,
+.motorista-title-row,
+.motorista-account,
+.motorista-brand,
+.motorista-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.motorista-header,
+.motorista-title-row {
+  justify-content: space-between;
+}
+.motorista-header {
+  padding: 0 2px 24px;
+}
+.motorista-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: #234c3a;
+  color: #f7f7ee;
+  font-weight: 900;
+  font-size: 22px;
+}
+.motorista-brand strong {
+  display: block;
+  font-size: 18px;
+  line-height: 1.2;
+}
+.motorista-brand small {
+  display: block;
+  margin-top: 3px;
+  color: #68786d;
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.motorista-account {
+  color: #66766c;
+  font-size: 13px;
+}
+.motorista-account button,
+.motorista-text-button {
+  border: 0;
+  background: none;
+  color: #315f48;
+  font-weight: 700;
+  cursor: pointer;
+}
+.motorista-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 5px;
+  border: 1px solid #dde5dc;
+  border-radius: 14px;
+  background: #e9eee8;
+  margin-bottom: 30px;
+}
+.motorista-tabs button {
+  flex: 1;
+  min-width: 86px;
+  padding: 11px 14px;
+  border: 0;
+  border-radius: 10px;
+  color: #5c6d61;
+  background: transparent;
+  font-weight: 700;
+  cursor: pointer;
+}
+.motorista-tabs button.active {
+  background: #fff;
+  color: #234c3a;
+  box-shadow: 0 2px 10px #1b312013;
+}
+.motorista-section {
+  display: grid;
+  gap: 18px;
+}
+.motorista-title-row {
+  align-items: end;
+  margin: 4px 0 8px;
+  gap: 24px;
+}
+.motorista-eyebrow {
+  color: #7e9665;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 11px;
+  font-weight: 800;
+  margin: 0 0 8px;
+}
+.motorista h1 {
+  margin: 0 0 7px;
+  font-size: clamp(28px, 5vw, 38px);
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+}
+.motorista h2 {
+  margin: 0 0 16px;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+.motorista-muted {
+  color: #66766c;
+  line-height: 1.5;
+  font-size: 13px;
+  margin: 0;
+}
+.motorista-card {
+  padding: 22px;
+  border: 1px solid #dde5dc;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 5px 22px #1b31200a;
+  min-width: 0;
+}
+.motorista-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.motorista-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.motorista-metric {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 102px;
+  padding: 18px;
+  background: #fff;
+  border: 1px solid #dde5dc;
+  border-radius: 16px;
+}
+.motorista-metric span {
+  color: #68776c;
+  font-size: 12px;
+  font-weight: 700;
+}
+.motorista-metric strong {
+  font-size: clamp(18px, 2.4vw, 26px);
+  letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
+}
+.motorista-metric.positive {
+  background: #e5f1e6;
+  border-color: #d2e5d4;
+  color: #1d6840;
+}
+.motorista-metric.negative {
+  background: #fbe9e5;
+  border-color: #f1d3cb;
+  color: #a73a27;
+}
+.motorista-filters {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.motorista-filters label {
+  min-width: 180px;
+  flex: 1;
+}
+.motorista-period {
+  font-size: 12px;
+  color: #66766c;
+  padding-bottom: 13px;
+}
+.motorista label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #4c5d51;
+}
+.motorista input,
+.motorista select,
+.motorista textarea {
+  width: 100%;
+  min-height: 43px;
+  border: 1px solid #cbd8cc;
+  border-radius: 9px;
+  padding: 9px 11px;
+  background: #fff;
+  color: #192920;
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+}
+.motorista input:focus,
+.motorista select:focus,
+.motorista textarea:focus {
+  border-color: #39825a;
+  box-shadow: 0 0 0 3px #39825a22;
+}
+.motorista textarea {
+  resize: vertical;
+}
+.motorista label small {
+  color: #6a786d;
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 400;
+}
+.motorista-form {
+  display: grid;
+  gap: 17px;
+}
+.motorista-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.motorista fieldset {
+  display: grid;
+  gap: 13px;
+  border: 1px solid #dde5dc;
+  border-radius: 12px;
+  margin: 0;
+  padding: 17px;
+}
+.motorista legend {
+  padding: 0 6px;
+  color: #234c3a;
+  font-size: 14px;
+  font-weight: 800;
+}
+.motorista-primary,
+.motorista-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border-radius: 10px;
+  padding: 10px 17px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.motorista-primary {
+  border: 1px solid #234c3a;
+  background: #234c3a;
+  color: #fff;
+}
+.motorista-primary:hover {
+  background: #326b4d;
+}
+.motorista-secondary {
+  border: 1px solid #b9cebd;
+  background: #f8faf7;
+  color: #234c3a;
+}
+.motorista button:disabled {
+  opacity: 0.58;
+  cursor: wait;
+}
+.motorista-data-row,
+.motorista-category-row,
+.motorista-expense-row,
+.motorista-evolution-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid #e8eee8;
+  padding: 13px 0;
+  font-size: 13px;
+}
+.motorista-data-row strong {
+  white-space: nowrap;
+}
+.motorista-data-row small,
+.motorista-expense-row small {
+  display: block;
+  margin-top: 4px;
+  color: #758278;
+  line-height: 1.4;
+  font-size: 11px;
+}
+.motorista-evolution {
+  max-height: 340px;
+  overflow-y: auto;
+}
+.motorista-evolution-row {
+  align-items: start;
+}
+.motorista-evolution-row time {
+  white-space: nowrap;
+  color: #68776c;
+}
+.motorista-evolution-row div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 6px 14px;
+  text-align: right;
+}
+.motorista-evolution-row .gain {
+  color: #287549;
+}
+.motorista-evolution-row .cost,
+.motorista-evolution-row .negative {
+  color: #af5542;
+}
+.motorista-category-list {
+  max-height: 320px;
+  overflow: auto;
+}
+.motorista-category-row button,
+.motorista-expense-row button {
+  border: 0;
+  background: none;
+  color: #315f48;
+  cursor: pointer;
+  font-weight: 700;
+}
+.motorista-category-row button:hover,
+.motorista-expense-row button:hover {
+  text-decoration: underline;
+}
+.motorista-category-row span {
+  flex: 1;
+}
+.motorista-category-row input {
+  flex: 1;
+}
+.motorista-expense-list {
+  max-height: 550px;
+  overflow: auto;
+}
+.motorista-expense-row > div:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.motorista-expense-row .motorista-danger {
+  color: #b04436;
+}
+.motorista-expense-row .motorista-actions {
+  gap: 4px;
+}
+.motorista-progress {
+  height: 12px;
+  margin: 20px 0 8px;
+  background: #e6eee5;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.motorista-progress span {
+  display: block;
+  height: 100%;
+  background: #39825a;
+}
+.motorista-alert {
+  margin: 0 0 20px;
+  padding: 13px 16px;
+  border-radius: 10px;
+  background: #f8eadb;
+  color: #7b4a16;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.motorista-alert.success {
+  background: #e4f2e7;
+  color: #22603d;
+}
+.motorista-alert.error {
+  background: #f9e7e4;
+  color: #a53e2e;
+}
+.motorista-loading {
+  padding: 24px;
+  color: #68776c;
+}
+.motorista-footer {
+  margin-top: 40px;
+  color: #849087;
+  font-size: 11px;
+  text-align: center;
+}
+.motorista-login {
+  max-width: 470px;
+  min-height: 95vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: start;
+  gap: 16px;
+}
+.motorista-login h1 {
+  margin-top: 24px;
+}
+.motorista-login p {
+  color: #66766c;
+  line-height: 1.6;
+  margin: 0;
+}
+.motorista-login .motorista-alert {
+  margin: 0;
+}
+@media (max-width: 760px) {
+  .motorista-shell {
+    padding-top: 16px;
+  }
+  .motorista-header {
+    padding-bottom: 18px;
+  }
+  .motorista-account span {
+    display: none;
+  }
+  .motorista-title-row {
+    align-items: start;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .motorista-grid {
+    grid-template-columns: 1fr;
+  }
+  .motorista-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .motorista-card {
+    padding: 17px;
+  }
+  .motorista-tabs {
+    margin-bottom: 22px;
+  }
+  .motorista-expense-row {
+    flex-wrap: wrap;
+  }
+  .motorista-expense-row .motorista-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+@media (max-width: 420px) {
+  .motorista-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .motorista-tabs button {
+    min-width: 0;
+    padding: 11px 3px;
+    font-size: 11px;
+  }
+  .motorista-stats {
+    gap: 9px;
+  }
+  .motorista-metric {
+    padding: 14px;
+  }
+}
