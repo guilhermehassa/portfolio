@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   useEffect,
   useMemo,
@@ -61,7 +62,7 @@ import {
 } from "@/lib/motorista";
 import "./motorista.css";
 
-type Tab = "resumo" | "ganhos" | "gastos" | "definicoes" | "backup";
+type Tab = "resumo" | "ganhos" | "gastos" | "relatorios" | "definicoes" | "backup";
 type Filter = "day" | "week" | "month" | "custom";
 type PeriodSelection = {
   filter: Filter;
@@ -773,18 +774,36 @@ export default function MotoristaApp() {
             </div>
           </div>
           <div className="motorista-account">
-            <span>{user.displayName || user.email}</span>
-            <button onClick={() => signOut(motoristaAuth)}>Sair</button>
+            <span className="motorista-account-name">{user.displayName || user.email}</span>
+            <AccountMenu
+              user={user}
+              onSettings={() => {
+                setTab("definicoes");
+                setNotice("");
+                window.scrollTo({ top: 0, behavior: "auto" });
+              }}
+              onExport={() => {
+                setTab("backup");
+                setNotice("");
+                window.scrollTo({ top: 0, behavior: "auto" });
+              }}
+              onSignOut={async () => {
+                try {
+                  await signOut(motoristaAuth);
+                } catch (error) {
+                  setNotice(`Não foi possível sair: ${errorMessage(error)}`);
+                }
+              }}
+            />
           </div>
         </header>
         <nav className="motorista-tabs" aria-label="Seções do controle">
           {(
             [
-              ["resumo", "Resumo"],
+              ["resumo", "Início"],
               ["ganhos", "Ganhos"],
               ["gastos", "Gastos"],
-              ["definicoes", "Definições"],
-              ["backup", "Backup"],
+              ["relatorios", "Relatórios"],
             ] as [Tab, string][]
           ).map(([id, label]) => (
             <button
@@ -1292,6 +1311,10 @@ export default function MotoristaApp() {
               </section>
             )}
 
+            {tab === "relatorios" && (
+              <section className="motorista-section" aria-label="Relatórios" />
+            )}
+
             {tab === "definicoes" && (
               <section className="motorista-section">
                 <div className="motorista-title-row">
@@ -1400,7 +1423,7 @@ export default function MotoristaApp() {
                 <div className="motorista-title-row">
                   <div>
                     <p className="motorista-eyebrow">Portabilidade</p>
-                    <h1>Backup e exportação</h1>
+                    <h1>Exportar e importar</h1>
                     <p className="motorista-muted">
                       Guarde uma cópia dos registros, categorias e metas. A
                       importação usa identificadores estáveis para evitar
@@ -1893,8 +1916,111 @@ function PickerInput({
   );
 }
 
+function AccountMenu({
+  user,
+  onSettings,
+  onExport,
+  onSignOut,
+}: {
+  user: User;
+  onSettings: () => void;
+  onExport: () => void;
+  onSignOut: () => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [open, setOpen] = useState(false);
+  const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
+  const name = user.displayName || user.email || "Minha conta";
+  const initials = name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase();
+
+  return (
+    <>
+      <button
+        type="button"
+        className="motorista-avatar"
+        aria-label="Abrir menu da conta"
+        aria-haspopup="dialog"
+        aria-controls="motorista-account-dialog"
+        aria-expanded={open}
+        onClick={(event) => {
+          const dialog = dialogRef.current;
+          if (!dialog) return;
+          const bounds = event.currentTarget.getBoundingClientRect();
+          dialog.style.top = `${bounds.bottom + 8}px`;
+          dialog.style.right = `${document.documentElement.clientWidth - bounds.right}px`;
+          dialog.showModal();
+          setOpen(true);
+        }}
+      >
+        {user.photoURL && failedPhoto !== user.photoURL ? (
+          <Image
+            src={user.photoURL}
+            alt=""
+            width={44}
+            height={44}
+            unoptimized
+            referrerPolicy="no-referrer"
+            onError={() => setFailedPhoto(user.photoURL)}
+          />
+        ) : (
+          <span aria-hidden="true">{initials}</span>
+        )}
+      </button>
+      <dialog
+        ref={dialogRef}
+        id="motorista-account-dialog"
+        className="motorista-account-dialog"
+        aria-labelledby="motorista-account-title"
+        onClose={() => setOpen(false)}
+        onClick={(event) => {
+          if (event.target !== event.currentTarget) return;
+          const bounds = event.currentTarget.getBoundingClientRect();
+          if (
+            event.clientX < bounds.left || event.clientX > bounds.right ||
+            event.clientY < bounds.top || event.clientY > bounds.bottom
+          ) dialogRef.current?.close();
+        }}
+      >
+        <div className="motorista-account-details">
+          <strong id="motorista-account-title">{name}</strong>
+          {user.email && user.email !== name && <small>{user.email}</small>}
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            dialogRef.current?.close();
+            onSettings();
+          }}
+        >
+          Definições
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            dialogRef.current?.close();
+            onExport();
+          }}
+        >
+          Exportar
+        </button>
+        <button
+          type="button"
+          className="motorista-account-signout"
+          onClick={() => {
+            dialogRef.current?.close();
+            onSignOut();
+          }}
+        >
+          Sair
+        </button>
+      </dialog>
+    </>
+  );
+}
+
 function TabIcon({ tab }: { tab: Tab }) {
   const paths: Record<Tab, React.ReactNode> = {
+    relatorios: <><path d="M5 3h10l4 4v14H5z" /><path d="M14 3v5h5M8 17v-3M12 17v-6M16 17v-4" /></>,
     resumo: <><path d="M3 11.5 12 4l9 7.5V20H3v-8.5Z" /><path d="M8 20v-6h8v6" /></>,
     ganhos: <><path d="M3 17.5 9 11l4 4 8-8" /><path d="M16 7h5v5" /></>,
     gastos: <><path d="M3 7h18v12H3z" /><path d="M3 10h18M16 15h2" /></>,

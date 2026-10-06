@@ -14,6 +14,9 @@ aviso pedindo contato por e-mail, em vez de postar num endpoint inexistente.
 
 ## Controle financeiro do motorista
 
+A documentação de uso, arquitetura, dados, cálculos, backup e manutenção está em
+[MOTORISTA.md](MOTORISTA.md).
+
 `/motorista` é uma página estática fora da navegação do portfólio, com login Google e dados no
 Cloud Firestore do projeto `motorista-17946`. O acesso aos dados é restrito pelo UID do
 proprietário em [`firestore.rules`](firestore.rules), publicado também no Firebase. A configuração

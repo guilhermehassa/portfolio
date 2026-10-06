@@ -114,6 +114,74 @@
   font-weight: 700;
   cursor: pointer;
 }
+.motorista-account .motorista-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid var(--motorista-border);
+  border-radius: 50%;
+  background: var(--motorista-surface);
+}
+.motorista-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.motorista-avatar:hover {
+  border-color: var(--motorista-accent);
+}
+.motorista-avatar:focus-visible,
+.motorista-account-dialog button:focus-visible {
+  outline: 2px solid var(--motorista-accent);
+  outline-offset: 3px;
+}
+.motorista-account-dialog {
+  position: fixed;
+  left: auto;
+  bottom: auto;
+  width: min(280px, calc(100vw - 28px));
+  max-height: calc(100dvh - 100px);
+  margin: 0;
+  padding: 8px;
+  overflow-y: auto;
+  border: 1px solid var(--motorista-border);
+  border-radius: 16px;
+  background: var(--motorista-surface);
+  color: var(--motorista-text);
+  box-shadow: 0 12px 40px #02061733;
+}
+.motorista-account-dialog::backdrop {
+  background: transparent;
+}
+.motorista-account-details {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px 14px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--motorista-border-soft);
+  overflow-wrap: anywhere;
+}
+.motorista-account-details small {
+  color: var(--motorista-muted);
+}
+.motorista-account-dialog button {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  text-align: left;
+}
+.motorista-account-dialog button:hover {
+  background: var(--motorista-surface-soft);
+}
+.motorista-account-dialog .motorista-account-signout {
+  color: var(--motorista-danger-text);
+}
 .motorista-tabs {
   display: flex;
   gap: 6px;
@@ -758,7 +826,7 @@
     bottom: 0;
     left: 0;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 2px;
     margin: 0;
     padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
@@ -785,7 +853,7 @@
     display: block;
     flex: none;
   }
-  .motorista-account span {
+  .motorista-account-name {
     display: none;
   }
   .motorista-section {
