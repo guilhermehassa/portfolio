@@ -1,3 +1,7 @@
+/* Tabelas e gráficos têm rolagem interna; a página não rola lateralmente. */
+html:has(.motorista) {
+  overflow-x: hidden;
+}
 .motorista {
   --motorista-bg: #eef3fb;
   --motorista-surface: #fff;
@@ -56,6 +60,162 @@
 }
 .motorista * {
   box-sizing: border-box;
+}
+.motorista-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+  gap: 14px;
+}
+.motorista-form > button {
+  align-self: flex-start;
+}
+.motorista-register-actions {
+  flex-wrap: wrap;
+}
+.motorista-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  max-width: 560px;
+}
+.motorista-calendar button {
+  border: 1px solid var(--motorista-border);
+  border-radius: 10px;
+  background: var(--motorista-surface-soft);
+  color: var(--motorista-text);
+  min-height: 48px;
+  padding: 6px 2px;
+  cursor: pointer;
+}
+.motorista-calendar button small,
+.motorista-calendar button strong {
+  display: block;
+}
+.motorista-calendar button[aria-pressed="true"] {
+  background: var(--motorista-button);
+  color: white;
+  border-color: var(--motorista-button);
+}
+.motorista-calendar button:focus-visible,
+.motorista button:focus-visible {
+  outline: 3px solid var(--motorista-accent);
+  outline-offset: 3px;
+}
+.motorista .motorista-tabs button:focus-visible {
+  outline-offset: -3px;
+}
+.motorista-table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.motorista-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  text-align: left;
+}
+.motorista-table th,
+.motorista-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--motorista-border-soft);
+}
+.motorista-table th {
+  font-weight: 700;
+  color: var(--motorista-muted);
+}
+.motorista-table td small {
+  display: block;
+  color: var(--motorista-muted);
+  margin-top: 4px;
+}
+.motorista-table caption {
+  text-align: left;
+  padding: 12px 0;
+  color: var(--motorista-muted);
+}
+.motorista-negative {
+  color: var(--motorista-danger-text);
+}
+.motorista-report-group {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.motorista-report-group p,
+.motorista-report-group h3 {
+  margin: 0;
+}
+.motorista-report-group .motorista-card {
+  box-shadow: none;
+}
+.motorista-chart {
+  margin: 0;
+  overflow-x: auto;
+}
+.motorista-chart svg {
+  width: 100%;
+  min-width: 400px;
+  display: block;
+  margin-top: 12px;
+  max-height: 520px;
+}
+.motorista-chart figcaption {
+  color: var(--motorista-muted);
+  font-size: 14px;
+}
+.motorista-fuel-fields {
+  border: 1px solid var(--motorista-border);
+  border-radius: 12px;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.motorista-fuel-fields legend {
+  padding: 0 6px;
+  font-weight: 700;
+}
+.motorista-form .motorista-check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.motorista-check input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.motorista details summary {
+  cursor: pointer;
+  font-weight: 700;
+  padding: 10px 0;
+}
+.motorista-dialog .motorista-field-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.motorista-dialog input,
+.motorista-dialog select,
+.motorista-dialog textarea {
+  min-width: 0;
+}
+.motorista-dialog .motorista-dialog-actions {
+  flex-wrap: wrap;
+}
+@media (max-width: 560px) {
+  .motorista-dialog .motorista-field-grid {
+    grid-template-columns: 1fr;
+  }
+  .motorista-register-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .motorista-title-row {
+    flex-wrap: wrap;
+  }
+  .motorista-title-row > .motorista-actions {
+    flex-wrap: wrap;
+  }
 }
 .motorista-shell {
   max-width: 1120px;
@@ -813,7 +973,7 @@
   }
   .motorista-brand small {
     font-size: 10px;
-    letter-spacing: .04em;
+    letter-spacing: 0.04em;
   }
   .motorista-account button {
     min-width: 44px;

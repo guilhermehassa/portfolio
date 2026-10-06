@@ -19,5 +19,11 @@ service cloud.firestore {
     match /users/{userId}/goals/{month} {
       allow read, write: if owner(userId);
     }
+    match /users/{userId}/plannedExpenses/{plannedExpenseId} {
+      allow read, write: if owner(userId);
+    }
+    match /users/{userId}/costProfiles/{profileId} {
+      allow read, write: if owner(userId);
+    }
   }
 }

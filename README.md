@@ -26,10 +26,11 @@ usa a região `southamerica-east1` e o app requer conexão para ler e gravar.
 Um novo deploy do site não altera os dados. Para mudar o proprietário, atualize o UID tanto no
 arquivo de regras quanto em `lib/motorista-firebase.ts`, publique as novas regras no Firebase e
 faça o deploy do site. O login Google aceita `localhost` e `hassa.dev.br` como domínios autorizados.
-Ganhos de Uber, 99 e Outros e dados de jornada (horas, quilômetros e consumo em km/L)
-ficam em um registro por data na coleção `days`. O backup JSON exporta esses registros,
-gastos, categorias e metas; a reimportação preserva itens com IDs iguais por padrão e
-aceita backups antigos.
+O fechamento reúne Uber, 99 e Outros, horas/minutos e quilômetros em um registro por data.
+Abastecimentos possuem detalhes opcionais, e os relatórios separam saldo dos lançamentos
+do resultado estimado do trabalho. Definições reúne metas por mês, calendário, compromissos
+e premissas históricas do veículo. O backup JSON v4 inclui as seis coleções e preserva IDs,
+campos históricos e vínculos; continua aceitando versões 1, 2 e 3.
 
 No celular, abra `https://hassa.dev.br/motorista` e use **Instalar aplicativo** no menu do
 Chrome para criar um atalho que abre em tela própria. No iPhone, use **Compartilhar** →
@@ -61,8 +62,8 @@ Acesse http://localhost:3000.
 npm run build
 ```
 
-Gera a pasta `out/` com HTML/CSS/JS puros. É esse conteúdo que vai para a VPS. Não existe
-`npm run start`: o export estático não sobe servidor Node.
+Gera a pasta `out/` com HTML/CSS/JS puros. É esse conteúdo que vai para a VPS.
+`npm run start` executa `next start`; a publicação deste projeto serve o export estático.
 
 Para conferir o resultado localmente, sirva a pasta por HTTP (abrir o arquivo direto pelo
 `file://` quebra o formulário e as rotas):
@@ -76,6 +77,7 @@ npx serve out
 ```
 npm run lint
 npx tsc --noEmit
+npm run test:motorista
 ```
 
 ## Estrutura

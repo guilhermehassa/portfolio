@@ -1,332 +1,204 @@
 # Motorista — documentação da aplicação
 
-Aplicação pessoal de controle financeiro para motorista, disponível na rota `/motorista` deste repositório. Permite registrar ganhos, gastos e dados de jornada, consultar o resultado por período e acompanhar uma meta de saldo mensal.
+Aplicação pessoal em `/motorista` para registrar jornadas, pagamentos e abastecimentos e planejar uma meta mensal de saldo. Esta documentação corresponde à evolução implementada em **06/10/2026**. O [plano de evolução](PLANO-EVOLUCAO-MOTORISTA.md) contém o acompanhamento; o [plano original](PLANO-MOTORISTA.md) é referência histórica.
 
-Esta documentação descreve a implementação presente no código em 05/10/2026, incluindo alterações locais ainda não commitadas. O [plano original](PLANO-MOTORISTA.md) descreve a intenção inicial; funcionalidades previstas ali podem diferir da interface atual. A configuração efetivamente publicada no Firebase e o comportamento do site em produção não foram verificados durante esta documentação.
+Código validado localmente. Novas regras e enriquecimento aditivo do histórico aplicados ao Firebase pelo Chrome real via Playwright MCP. O site não foi publicado nesta execução.
 
-## Acesso e organização
+## Acesso e navegação
 
-- Endereço de produção indicado pelo projeto: [hassa.dev.br/motorista](https://hassa.dev.br/motorista).
-- Desenvolvimento: [localhost:3000/motorista](http://localhost:3000/motorista).
-- Idioma da interface: português do Brasil; moeda: real brasileiro.
-- Autenticação: conta Google, com acesso limitado ao UID do proprietário.
-- Persistência: Cloud Firestore, compartilhada entre dispositivos autenticados.
-- Conexão com a internet necessária para login, leitura e gravação.
+Login Google restrito ao proprietário, com verificação do UID tanto no cliente quanto nas regras do Firestore. Outra conta não carrega os registros. A configuração web do Firebase é pública; não concede acesso aos documentos.
 
-A página fica fora da navegação do portfólio. Seus metadados usam `noindex`/`nofollow`, `public/robots.txt` bloqueia `/motorista` e a rota não aparece no sitemap. Essas configurações tratam indexação; a autorização dos dados depende das regras do Firestore.
-
-## Guia de uso
-
-### Entrar e navegar
-
-Abra `/motorista`, clique em **Entrar com Google** e autentique a conta autorizada. O login abre um popup. Uma conta diferente pode autenticar no Google, mas recebe a mensagem **Esta conta não tem acesso aos dados** e não carrega os registros.
-
-A navegação principal contém:
-
-| Seção | Conteúdo atual |
+| Seção | Uso |
 | --- | --- |
-| Início | Resultado do período, referência de meta, participação dos ganhos e gastos e estatísticas da jornada. |
-| Ganhos | Ganhos agrupados por dia e edição dos dados de trabalho. |
-| Gastos | Despesas agrupadas por dia, com criação, edição e exclusão. |
-| Relatórios | Aba presente, mas seu conteúdo ainda está vazio. |
+| Início | Registrar; última jornada; planejamento do mês atual. |
+| Ganhos | Fechar e corrigir o dia; registrar/editar ganhos rápidos. |
+| Gastos | Registrar, complementar e excluir pagamentos e abastecimentos. |
+| Relatórios | Resultado e meus dias; rendimento; ganhos; custos e veículo; meta e cenários. |
+| Definições, no menu da conta | Meta por mês, calendário, base histórica, perfis do veículo, compromissos e categorias. |
+| Exportar, no menu da conta | Backup JSON, CSV e importação com prévia. |
 
-O avatar no cabeçalho abre o menu da conta, com **Definições**, **Exportar** e **Sair**. Definições reúne meta e categorias; Exportar também permite importar backups. Essas seções são estados internos do componente, sem URLs próprias. Ao recarregar a página, a navegação retorna ao Início e os filtros são reinicializados.
+Seções são estados internos, sem URL própria. Recarregar retorna ao Início. Ganhos e Gastos têm filtros próprios; Relatórios usa um filtro comum aos cinco grupos. Dia, semana segunda–domingo, mês e intervalo personalizado incluem início e fim. No mês corrente dos Relatórios, a análise observada termina hoje. Período inválido não produz indicadores.
 
-### Selecionar um período
+Início vinculado ao mês atual, sem ratear meta por filtro semanal. Última jornada oferece correção e relatório da data. Ganhos são informados manualmente; não há integração com os aplicativos.
 
-Início, Ganhos e Gastos possuem filtros independentes. O padrão é a semana atual.
+## Registrar e fechar um dia
 
-| Filtro | Abrangência |
+**Fechar dia** reúne data de início, totais Uber/99/Outros, corridas opcionais, horas inteiras e minutos adicionais, KM do trabalho, odômetros opcionais, consumo manual histórico, turno e observação.
+
+- Use um único tempo real, incluindo espera e deslocamentos de trabalho e excluindo pausas pessoais. Não some tempos online simultâneos.
+- Informe os KM ou os dois odômetros; a diferença substitui os KM diretos. Exclua uso pessoal.
+- Se atravessar meia-noite, escolha a data de início. Gastos mantêm suas datas reais.
+- Vazio é não informado; zero digitado é confirmado. Para fechar, informe pelo menos uma origem de ganho, inclusive zero.
+- **Salvar pendente** preserva dados incompletos. **Fechar dia** confirma encerramento. **Marcar folga** exige ausência de ganhos e jornada positivos.
+- Gastos existentes da data aparecem como apoio e não são regravados.
+- Corrigir data anterior atualiza o mesmo documento, sem duplicar dias. Não há exclusão completa da jornada.
+
+Ganho rápido usa os mesmos totais por origem/data e cria pendência quando não há fechamento. Não soma dois cadastros da mesma origem: edite o total. Mudança de origem/data e exclusão são transacionais; preservam outros ganhos, jornada e campos históricos. Contagens não são transferidas automaticamente.
+
+Formulários guardam o estado inicial; alteração concorrente recusa a gravação para evitar sobrescrever outra sessão.
+
+## Gastos e abastecimentos
+
+Cadastro rápido exige data, categoria e valor positivo; observação opcional até 500 caracteres. Gasto não cria jornada nem confirma folga.
+
+**Abastecer** admite combustível, volume, unidade `L` ou `m3` (m³), odômetro, tanque completo/parcial e registro anterior ausente. Salve só o valor e complete depois. Há um único pagamento em `expenses`; detalhes não geram outra dedução.
+
+Histórico antigo sem volume/odômetro é incompleto. Categorias/gastos admitem escolha explícita operacional, veículo ou pessoal. Saldo inclui todos os pagamentos; atribuição à jornada depende de classificação. Renomear categoria mantém ID/associações. Não há exclusão de categoria.
+
+Gasto pode pagar ocorrência prevista. Gravar/trocar/remover vínculo atualiza pagamento e compromisso na mesma transação. Exclusão pede confirmação e torna a previsão pendente novamente.
+
+## Definições e planejamento
+
+Selecione o mês da meta para editar histórico ou futuro. Somente o valor positivo da meta é herdado; calendário, base e ajuste diário pertencem ao mês selecionado.
+
+Calendário inicial segunda–sexta é sugestão editável. Hoje participa dos dias restantes se planejado e ainda não fechado/folga. Não é necessário abrir o app no início do trabalho.
+
+Previsão variável usa últimos **30 dias elegíveis disponíveis**, configuráveis de 1 a 365. Quantidade/datas são visíveis; valor diário pode ser ajustado. Pagamentos fixos, extraordinários e vinculados ficam separados da base. Custos não classificados permanecem na previsão variável com aviso.
+
+Perfis registram início de vigência, próprio/financiado/alugado, combustível/unidade, consumo/preço de referência, parcela profissional, fixo mensal e provisões por KM opcionais. Informe aluguel, parcela ou custos correspondentes ao regime do veículo, evitando equivalentes duplicados. Nova vigência preserva antigas; revisão de vigência existente exige confirmação.
+
+Compromissos têm data, categoria, valor, nota, recorrência mensal opcional e data final. Ocorrências são `id--AAAA-MM-DD`; vencimentos 29–31 usam último dia em meses curtos. Ocorrências vencidas não pagas do mês continuam pendentes.
+
+## Resultados e fórmulas
+
+O [modelo detalhado](MODELO-EVOLUCAO-MOTORISTA.md) documenta campos, fórmulas e reversão.
+
+**Saldo dos lançamentos** = todos os ganhos − todos os pagamentos nas datas registradas, incluindo pessoais, folgas, pendências e dias sem jornada. Não é necessariamente saldo bancário ou data do repasse.
+
+**Resultado estimado do trabalho** = ganhos − combustível consumido estimado − despesas atribuíveis − custos estimados do veículo. Identificado separadamente, com premissas por data.
+
+| Indicador | Base |
 | --- | --- |
-| Dia | A data selecionada. |
-| Semana | Semana ISO, de segunda-feira a domingo, inclusive. |
-| Mês | Primeiro ao último dia do mês selecionado. |
-| Personalizado | Data inicial e final, ambas incluídas. |
+| Dia elegível | Fechado, inclusive zero confirmado; ou legado com evidência positiva de trabalho. Pendência/folga fora das médias. |
+| Ganho por dia | Ganhos dos dias elegíveis / quantidade desses dias. |
+| Gasto por dia corrido | Pagamentos até referência / dias observados, sem futuro. |
+| Gasto por dia trabalhado | Todos os pagamentos do período / dias elegíveis; distribuição inclusive de gastos em folgas. |
+| Ganho por hora/KM | Soma dos ganhos com divisor positivo informado / soma dos divisores correspondentes. |
+| Média por corrida | Ganhos/contagens da mesma origem nos dias elegíveis com ambos informados e contagem positiva. |
+| Estimativa por hora/KM | Somente jornadas com estimativa e divisor compatível; cobertura visível. |
 
-Datas inválidas ou um início posterior ao fim tornam o período inválido. Os registros ficam sem resultados e a interface solicita um período válido. A seleção não altera o que está salvo.
+Insuficiência aparece como `—`. Zeros legados não fabricam médias por corrida. Turno classifica o dia inteiro, sem distribuir ganhos por hora/aplicativo. Amostras e cobertura são visíveis.
 
-### Registrar ganhos
+### Combustível e custos
 
-Em **Ganhos**, clique em **Registrar ganho**, informe data, origem (**Uber**, **99** ou **Outros**) e um valor positivo. Também há um atalho no Início. Novos cadastros começam na data atual do dispositivo, que pode ser alterada.
+Consumo observado exige dois tanques completos identificados. Distância entre odômetros / volumes parciais intermediários e do abastecimento final. Ausências, mudança de combustível/unidade, odômetro não crescente e ordem ambígua na mesma data quebram o ciclo. Medição do veículo inteiro; ciclo futuro não retroage a jornada anterior.
 
-Existe um total por origem e data. Se Uber já tiver valor em determinado dia, outro cadastro de Uber para esse dia será recusado: edite o registro existente com o novo total. O cadastro não soma automaticamente dois lançamentos da mesma origem.
+Consumo manual antigo permanece visível, sem substituição. Para estimativa em litros: manual diário, depois perfil, depois ciclo válido aplicável. Preço vem do perfil ou de abastecimento conhecido até a jornada. Sem perfil/preço/consumo/KM, estimativa indisponível.
 
-Os ganhos ficam agrupados por dia, do mais recente para o mais antigo. Cada ganho pode ser editado ou excluído; a exclusão pede confirmação. Na edição, é possível mudar valor, data ou origem. Se a combinação de destino já tiver valor, a alteração será recusada.
+Combustível = KM do trabalho / consumo × preço. Fixos = mensal × parcela profissional / dias corridos do mês. Provisões = KM do trabalho × valor por KM; valor por KM já deve corresponder ao trabalho.
 
-A gravação usa uma transação: ao mudar data ou origem, o valor anterior é zerado e o novo é gravado em conjunto. Ao excluir, apenas os campos daquela origem são zerados; os dados da jornada e os demais ganhos do dia permanecem.
+Abastecimento pago fica fora dessa dedução. Provisão equivalente de manutenção/desgaste ou fixo configurado substitui seu pagamento, sem soma dupla. Pessoais não são atribuídos; não classificados ficam fora com contagem. Custos do veículo sem provisão equivalente usam parcela profissional. Provisões não afetam saldo/meta.
 
-Use **Outros** para ganhos externos aos aplicativos. A interface atual não oferece campo para quantidade de corridas, embora o modelo mantenha `uberRides` e `ninetyNineRides` por compatibilidade.
-
-### Registrar dados do dia
-
-Em **Ganhos**, clique em **Registrar dados do dia**, ou no ícone de edição dos dados de uma data existente. Informe:
-
-- **Horas trabalhadas:** duração decimal, como `8,5` para 8 horas e 30 minutos.
-- **KM rodados:** distância total, como `145,5`.
-- **Consumo (km/L):** consumo informado para aquele dia, como `12,5`.
-
-Os três valores são opcionais; campos vazios são salvos como zero. Aceitam números não negativos. Horas são convertidas para minutos inteiros com arredondamento. O consumo é informado manualmente, sem cálculo automático a partir dos gastos com combustível.
-
-Salvar os dados do dia preserva os ganhos existentes. É possível registrar uma jornada sem ganhos. Um documento diário com todos os valores zerados permanece no Firestore, mas fica fora da listagem de Ganhos. Não há exclusão do documento diário pela interface.
-
-### Registrar gastos
-
-Em **Gastos**, clique em **Registrar gasto** e informe data, categoria, valor positivo e, opcionalmente, uma observação de até 500 caracteres. O botão de um grupo diário já preenche sua data.
-
-Um dia pode ter vários gastos, inclusive sem jornada ou ganho registrado. Cada gasto tem ID próprio, pode ser editado e pode ser excluído após confirmação. O valor inteiro entra no resultado da data informada, sem rateio entre períodos.
-
-As categorias iniciais são **Combustível**, **Manutenção**, **Alimentação**, **Pedágio**, **Estacionamento**, **Lavagem** e **Outros**. Em Definições é possível criar categorias e renomear as existentes. Nomes devem ser únicos, desconsiderando maiúsculas/minúsculas, e ter até 80 caracteres. Renomear preserva o ID e a associação dos gastos anteriores. Não existe exclusão de categorias na interface.
-
-### Configurar a meta
-
-No menu da conta, abra **Definições**, preencha **Meta mensal de saldo (R$)** com um valor positivo e salve.
-
-A interface grava a meta no mês atual do dispositivo. Ela vale desse mês em diante até outra meta ser registrada. Ao consultar um mês, o sistema usa a meta positiva mais recente cuja data seja igual ou anterior ao mês consultado.
-
-Por exemplo, uma meta salva em outubro continua valendo em novembro se não houver uma meta posterior. Alterar a meta novamente em outubro substitui a meta de outubro; salvar uma nova em novembro preserva a de outubro. A interface atual não possui seletor para editar metas de meses anteriores.
-
-## Indicadores e regras de cálculo
-
-Todos os indicadores do Início são calculados no navegador a partir dos registros carregados. Alterações recebidas pelo Firestore atualizam os cálculos.
-
-### Resultado e jornada
-
-| Indicador | Cálculo |
-| --- | --- |
-| Ganhos do período | Soma dos valores de Uber, 99 e Outros nas datas filtradas. |
-| Gastos do período | Soma de todas as despesas nas datas filtradas. |
-| Saldo | Ganhos menos gastos; pode ser negativo. |
-| Participação de uma origem | Valor da origem dividido pelos ganhos totais × 100. |
-| Participação de uma categoria | Gastos da categoria divididos pelos gastos totais × 100. |
-| Horas trabalhadas | Soma dos minutos dividida por 60. |
-| Ganho por hora | Ganhos divididos pelas horas trabalhadas. |
-| KM rodados | Soma dos quilômetros informados. |
-| Ganho por KM | Ganhos divididos pelos quilômetros. |
-| Consumo médio | Média aritmética dos consumos diários maiores que zero. |
-
-Ganhos por hora e por quilômetro mostram `—` quando o divisor é zero. O consumo médio também mostra `—` se nenhum dia tiver consumo positivo. A média de consumo não é ponderada pela distância nem pelos litros consumidos.
-
-O saldo representa somente os valores registrados. Despesas ainda não lançadas ficam fora do cálculo.
-
-### Meta do período e progresso mensal
-
-A meta é de **saldo**, depois de descontar os gastos. Para estimar a referência do período, o código assume uma média de cinco dias de trabalho por semana:
+### Meta
 
 ```text
-dias estimados do mês = arredondar(dias corridos do mês × 5 / 7)
-dias estimados do trecho = arredondar(dias corridos do trecho × 5 / 7)
-meta do trecho = meta mensal × dias estimados do trecho / dias estimados do mês
-meta do período = soma das metas dos trechos, arredondada em centavos
-falta = máximo(meta do período − saldo do período, 0)
+ganho necessário = máximo(meta − saldo realizado + despesas futuras, 0)
+ganho necessário por dia = ganho necessário / dias planejados restantes
+saldo projetado = saldo realizado + ganhos futuros estimados − despesas futuras
 ```
 
-O cálculo divide intervalos em trechos mensais e resolve a meta vigente para cada mês. Se algum mês não tiver uma meta positiva aplicável, a referência e o valor que falta aparecem como `—`.
+Futuro = variáveis ainda esperadas + compromissos pendentes + pagamentos já cadastrados com data futura. Vinculados substituem sua previsão; variáveis já lançadas em datas restantes reduzem a estimativa daquela data. Fixos/extraordinários não se repetem na média variável.
 
-O cartão **Meta** compara saldo filtrado e meta estimada do período. **% da meta do mês** usa o saldo do mês completo de referência, mesmo quando o filtro seleciona apenas um dia ou uma semana. Esse mês é o da data inicial do período; em uma semana que atravessa dois meses, será o mês da segunda-feira. Em um intervalo personalizado que atravessa meses, o percentual mensal fica sem valor.
+Projeção usa média histórica × dias restantes, desconta ganhos parciais nessas datas e identifica lançamentos futuros. Mês encerrado mostra realizado; futuro mostra planejamento. Zero dias não divide; meta atingida pode exigir ganho por causa de despesas futuras.
 
-O percentual textual pode ser negativo ou ultrapassar 100%. A barra visual é limitada ao intervalo de 0% a 100%.
+Intervalo entre meses identifica mês próprio da meta. Comparações têm mesma quantidade de dias; mês corrente usa trecho correspondente anterior. Se o mês anterior for curto, janela retrocede para conservar duração; datas são exibidas.
 
-**Particularidade do cálculo atual:** o arredondamento é feito para o intervalo inteiro. Assim, a soma das referências calculadas para dias isolados pode diferir da referência calculada para a semana completa. O cálculo trata o tamanho do intervalo, sem verificar quais dias da semana serão trabalhados.
+Cenários são locais ao relatório e não salvam registros/metas. Projeção não garante ganho.
 
-`goalPlan()` em `lib/motorista.ts` contém cálculos de referência diária, semanal e necessidade diária restante, mas não é usado pela interface atual.
+## Arquitetura e modelo
 
-## Arquitetura e arquivos
-
-O projeto usa Next.js com App Router, React, TypeScript e o SDK web do Firebase. O build gera um site estático (`output: "export"`); a aplicação Motorista executa no navegador e acessa Authentication e Firestore diretamente. O Cloudflare Worker do formulário de contato do portfólio não participa desse fluxo.
-
-```mermaid
-flowchart LR
-  S[Site estático servido pelo Caddy] --> A[MotoristaApp no navegador]
-  A --> G[Firebase Authentication / Google]
-  A <--> F[Cloud Firestore]
-  R[firestore.rules: UID do proprietário] --> F
-  A --> B[Download JSON e CSV]
-  J[Arquivo JSON selecionado] --> A
-```
+Next.js/App Router, React, TypeScript e Firebase web. Site estático (`output: "export"`); navegador acessa Authentication/Firestore. Sem API própria do Motorista ou participação do Worker de contato.
 
 | Arquivo | Responsabilidade |
 | --- | --- |
-| [`app/motorista/page.tsx`](app/motorista/page.tsx) | Rota, título, SEO e cores do navegador. |
-| [`app/motorista/layout.tsx`](app/motorista/layout.tsx) | Manifesto, ícones e configuração para tela inicial no iOS. |
-| [`components/motorista/motorista-app.tsx`](components/motorista/motorista-app.tsx) | Login, estado, navegação, formulários, filtros, persistência e backups. |
-| [`components/motorista/motorista.css`](components/motorista/motorista.css) | Estilos exclusivos, tema conforme preferência do sistema e adaptação ao celular. |
-| [`lib/motorista.ts`](lib/motorista.ts) | Tipos, valores padrão, datas, cálculos, validação de backup e geração de CSV. |
-| [`lib/motorista-firebase.ts`](lib/motorista-firebase.ts) | Configuração do Firebase, instâncias de Auth/Firestore e UID autorizado. |
-| [`firestore.rules`](firestore.rules) | Regras de autorização das quatro coleções. |
-| [`public/pwa/motorista.webmanifest`](public/pwa/motorista.webmanifest) | Identidade, início, escopo, modo de exibição e ícones do aplicativo. |
-| [`next.config.ts`](next.config.ts) | Exportação estática, URLs sem barra final e imagens sem otimização em runtime. |
-| [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) | Instalação, lint, build e publicação dos arquivos na VPS. |
+| `components/motorista/motorista-app.tsx` | Login, seis assinaturas, navegação, transações, filtros e backups. |
+| `motorista-forms.tsx` | Fechamento e gasto/abastecimento. |
+| `motorista-settings.tsx` | Planejamento, perfis, compromissos e categorias. |
+| `motorista-reports.tsx` | Cinco grupos, gráficos/tabelas, cobertura e cenários. |
+| `lib/motorista.ts` | Tipos, datas, validação v1–v4, lotes e CSV. |
+| `lib/motorista-evolution.ts` | Elegibilidade, consumo, estimativas e planejamento. |
+| `lib/motorista-persistence.ts` | Firestore e modo isolado de QA. |
+| `lib/motorista-firebase.ts` | Configuração web e proprietário. |
+| `firestore.rules` | Autorização das seis coleções. |
+| `tests/motorista.test.mjs` | Exemplos controlados, compatibilidade e importação. |
 
-### Carregamento e gravação
+Coleções em `users/{uid}`:
 
-Após autenticar o proprietário, quatro assinaturas `onSnapshot` carregam integralmente `days`, `expenses`, `categories` e `goals` sob `users/{uid}`. A interface aguarda a primeira resposta das quatro coleções para mostrar as seções. As assinaturas são encerradas quando o efeito é desmontado ou a sessão muda.
+| Coleção | ID e evolução |
+| --- | --- |
+| `days` | Data; ganhos/jornada, status, filled, origem, turno, nota e odômetros. |
+| `expenses` | UUID; pagamento, data/categoria/nota, tipo/escopo, combustível e vínculo opcionais. |
+| `categories` | ID preservado; nome, escopo e tipo de custo. |
+| `goals` | Mês; meta, calendário, base histórica e ajuste opcional. |
+| `plannedExpenses` | UUID; compromisso e mapa de ocorrências pagas. |
+| `costProfiles` | UUID; vigência e premissas. |
 
-Os filtros são aplicados em memória, sem consultas ao Firestore por intervalo. O volume de dados carregados cresce com todo o histórico.
+Centavos/minutos inteiros; KM/volumes decimais; datas civis locais. Consumo antigo em km/L. Sem coleção persistida gains; ganho rápido deriva de days.
 
-As gravações usam `setDoc`, `deleteDoc`, transações para ganhos e lotes para gastos com criação de categoria ou importações. A interface indica carregamento, operação em andamento, sucesso e erro. Não há backend próprio nem API HTTP interna do Motorista.
+Seis onSnapshot carregam todo o histórico. Filtros/cálculos em memória, sem paginação. Tela espera as seis respostas, mostra erro/nova tentativa e gravação em andamento. Escritas transacionais detectam conflitos. Categorias padrão persistidas apenas quando necessárias.
 
-## Modelo de dados
+Regras exigem sessão, UID proprietário e caminho correspondente; outros caminhos não liberados. Regras validam autorização; esquema/valores são validados no cliente.
 
-Todos os documentos ficam sob `users/{uid}`:
+## Migração do histórico real
 
-| Coleção | ID do documento | Campos |
-| --- | --- | --- |
-| `days` | Data `AAAA-MM-DD` | `date`, `uberCents`, `uberRides`, `ninetyNineCents`, `ninetyNineRides`, `otherCents`, `minutes`, `km`, `consumption` opcional. |
-| `expenses` | UUID para novos cadastros | `id`, `date`, `categoryId`, `cents`, `note`. |
-| `categories` | ID fixo das categorias padrão ou UUID | `id`, `name`. |
-| `goals` | Mês `AAAA-MM` | `month`, `cents`. |
+Backup bruto reaberto antes de qualquer escrita em `backups/motorista/2026-10-05-2330/`: campos/tipos Firestore, metadados e percurso recursivo completo. Pasta privada ignorada pelo Git, fora de public/out.
 
-Valores monetários são armazenados em **centavos inteiros**: R$ 125,50 corresponde a `12550`. Durações ficam em minutos inteiros; distância e consumo admitem casas decimais. Datas são civis, sem horário, usando o calendário local do dispositivo. `exportedAt` no backup é um timestamp ISO.
+Inventário, proposta semântica, aplicação, regras originais e relatório final estão ao lado. Preservados **29 documentos**; enriquecidas oito jornadas legadas e oito abastecimentos incompletos, com mesmos IDs. Todos os campos originais relidos e comparados sem divergência. Não inventados volumes/odômetros ou classificação pessoal/profissional.
 
-O carregamento de um dia combina seus dados com `emptyDay()`, que fornece zero para campos ausentes. Documentos criados por gravações parciais podem conter somente parte dos campos diários.
+Originais intactos. Reversão deve conferir precondições e remover apenas enriquecimento aplicado ou restaurar campos originais, preservando edições posteriores; conflito exige reconciliação. Clientes antigos mantêm seus campos e o novo lê documentos legados.
 
-`Gain` é uma representação para exibição e edição, derivada dos totais do dia por `legacyGains()`. Seus IDs são `legacy:{data}:{origem}`. **Não há coleção `gains` na persistência atual.**
+Regras publicadas relidas iguais ao arquivo local. Quarenta simulações de get/list/create/update/delete nas duas novas coleções: proprietário permitido; outra conta/anônimo negados; proprietário negado em caminho de outro usuário.
 
-Categorias padrão também existem no código e aparecem mesmo sem documento salvo. Ao cadastrar um gasto numa categoria padrão ainda não persistida, a aplicação grava categoria e gasto no mesmo lote. Uma categoria salva com o mesmo ID substitui o nome padrão na interface.
+## Backup e CSV
 
-## Autenticação e segurança
+Exportação inclui todo o histórico, independentemente do filtro.
 
-O projeto configurado em `lib/motorista-firebase.ts` é `motorista-17946`. A aplicação usa `signInWithPopup` com `GoogleAuthProvider` e acompanha a sessão por `onAuthStateChanged`.
+JSON **v4**: exportedAt, days, expenses, categories, goals, plannedExpenses, costProfiles. Inclui calendário, perfis históricos e vínculos. Desconhecidos compatíveis com JSON nos documentos são preservados; cópia bruta Firestore é referência para metadados/tipos externos ao formato da aplicação.
 
-A interface só habilita o carregamento quando `user.uid === MOTORISTA_UID`. No Firestore, a função `owner(userId)` exige uma sessão autenticada, o UID fixo do proprietário e a correspondência com o `{userId}` do caminho. As regras permitem leitura e escrita apenas nas quatro subcoleções explicitamente declaradas.
+Versões **1/2/3** aceitas, normalizadas para v4 sem fabricar fechamento. V2 soma gains aos totais conforme contrato anterior.
 
-A configuração web do Firebase é pública. A proteção dos registros é feita pelas regras do Firestore, inclusive contra acesso fora da interface. As regras locais atuais validam autorização, mas não validam campos, tipos ou valores dos documentos; essas validações estão nos formulários e no importador.
+1. Selecione JSON, confira prévia e escolha preservar existentes (padrão) ou atualizar mesmos IDs.
+2. Confirme: preservar ignora existentes; atualizar substitui documento inteiro. Ausentes não são apagados; ganhos não são somados novamente.
+3. Importador valida também estado combinado e vínculos.
 
-Para alterar o proprietário:
+Limites: 5.000.000 bytes; 10.000 itens; datas/IDs/categorias/vínculos coerentes e inteiros seguros não negativos. Aceita desconhecidos JSON, rejeita chaves perigosas e profundidade excessiva.
 
-1. Obtenha o UID da conta desejada no Firebase Authentication.
-2. Atualize `MOTORISTA_UID` em `lib/motorista-firebase.ts` e o UID da função `owner` em `firestore.rules`.
-3. Publique as regras atualizadas no projeto Firebase correspondente.
-4. Gere e publique novamente o site.
+Categorias primeiro. Lotes transacionais até **150 documentos**, mantendo compromisso/pagamentos importados juntos. Grupo maior recusado antes de gravar. Arquivo inteiro não atômico: erro posterior preserva lotes confirmados e informa contagem aplicada. Alteração concorrente interrompe o lote; reexporte/confira antes de repetir.
 
-Os dados ficam associados ao UID antigo; trocar o UID autorizado não migra os registros. Se for necessário transferi-los, exporte o JSON com a conta antiga antes da troca e importe com a nova conta depois da configuração.
+CSV UTF-8/BOM, separador ponto e vírgula, aspas, CRLF. Identifica centavos/corridas/minutos/KM/consumo, situação, combustível/unidade/volume/odômetro e estimativas em colunas próprias. Zero confirmado preservado; ausente vazio. Linha estimativa_trabalho não é pagamento. CSV não restaura; use JSON.
 
-O README registra `localhost` e `hassa.dev.br` como domínios autorizados para o login. Confirme essa configuração no Firebase ao usar outro host. O repositório não contém configuração de emuladores nem um comando npm para publicar regras; o workflow do site não publica `firestore.rules`.
+QA exportou conteúdo gerado pelo botão e recuperou 16 documentos fictícios nas seis coleções, sem diferença de campos; segunda prévia propôs zero gravações. Evento de download do Chrome não fornecido pela sessão MCP; bytes do Blob e restauração conferidos diretamente. Importações de teste não alteraram conta real.
 
-## Exportação e importação
-
-Abra **Exportar** pelo menu da conta. JSON e CSV incluem **todo o histórico carregado**, independentemente dos filtros.
-
-### Backup JSON
-
-O arquivo baixado usa o nome `motorista-backup-AAAA-MM-DD.json`, versão atual `3`, com `exportedAt`, `days`, `expenses`, `categories` e `goals`. Inclui também as categorias padrão disponíveis na interface.
-
-Exemplo válido de estrutura, com valores fictícios:
-
-```json
-{
-  "version": 3,
-  "exportedAt": "2026-10-05T18:00:00.000Z",
-  "days": [{
-    "date": "2026-10-05",
-    "uberCents": 25000,
-    "uberRides": 0,
-    "ninetyNineCents": 8000,
-    "ninetyNineRides": 0,
-    "otherCents": 2000,
-    "minutes": 480,
-    "km": 150,
-    "consumption": 12.5
-  }],
-  "expenses": [{
-    "id": "exemplo-combustivel",
-    "date": "2026-10-05",
-    "categoryId": "combustivel",
-    "cents": 7500,
-    "note": "Abastecimento"
-  }],
-  "categories": [{ "id": "combustivel", "name": "Combustível" }],
-  "goals": [{ "month": "2026-10", "cents": 500000 }]
-}
-```
-
-### Restaurar ou combinar registros
-
-1. Selecione um arquivo JSON.
-2. Aguarde a validação e confira quantidades, data da cópia e coincidências por ID na prévia.
-3. Escolha **Preservar existentes (importar só novos)**, padrão, ou **Atualizar itens com o mesmo ID**.
-4. Clique em **Confirmar importação** e confirme o diálogo.
-
-O modo preservar ignora documentos cujos IDs já estejam no estado carregado; não soma valores de um backup a um dia existente. O modo atualizar substitui o documento inteiro com o mesmo ID. Em ambos os modos, itens ausentes do arquivo permanecem salvos.
-
-A validação aceita versões `1`, `2` e `3`. Na versão `2`, a lista adicional `gains` é validada e seus valores são somados aos campos diários correspondentes, produzindo um backup normalizado para versão `3`.
-
-Limites e verificações:
-
-- Arquivo de até 5.000.000 bytes.
-- Até 10.000 itens somando as listas; na versão `2`, inclui os ganhos separados.
-- Datas e meses válidos, valores não negativos e centavos/contagens/minutos como inteiros seguros.
-- Ganhos separados da versão `2` com valor positivo e origem reconhecida.
-- IDs de ganhos separados, gastos e categorias com 1 a 128 caracteres alfanuméricos, `_` ou `-`.
-- Nomes de categorias preenchidos com até 80 caracteres e observações com até 500.
-- Ausência de IDs duplicados dentro de cada lista; todo gasto precisa ter categoria correspondente no próprio backup.
-- Somente campos reconhecidos em cada registro das listas. Diferentemente dos formulários, a validação admite gastos e metas com valor zero.
-
-A importação grava lotes sequenciais de até 400 documentos. Cada lote é atômico, mas o arquivo inteiro não é: se um lote posterior falhar, os anteriores continuam gravados. A verificação de IDs existentes usa os dados carregados no início da operação, sem transação global entre dispositivos.
-
-### CSV para planilhas
-
-O arquivo `motorista-lancamentos-AAAA-MM-DD.csv` usa UTF-8 com BOM, separador `;`, campos entre aspas e linhas CRLF. As colunas são:
-
-```text
-tipo;data;categoria;descricao;valor_centavos;corridas;minutos;km;consumo_km_l
-```
-
-Existem linhas `ganho` para cada origem com valor positivo, uma linha `dados_do_dia` por registro diário e linhas `gasto` para despesas. Os valores monetários permanecem em centavos, sem formatação em reais. Categorias dos gastos são exportadas pelo nome atual. O CSV não contém metas nem serve como arquivo de restauração; a importação aceita somente JSON.
-
-## Executar e publicar
-
-Use Node.js 20.9 ou superior e npm. O workflow de produção usa Node.js 22. Na raiz do repositório:
+## Executar e validar
 
 ```powershell
 npm ci
 npm run dev
-```
-
-Abra `http://localhost:3000/motorista`. Não há variável de ambiente específica para o Motorista: a configuração do Firebase está no código. `NEXT_PUBLIC_CONTACT_ENDPOINT` pertence ao formulário de contato do portfólio.
-
-**O ambiente local usa o mesmo Firebase configurado para o site.** Não há isolamento automático: salvar ou excluir após autenticar a conta proprietária altera seus dados reais.
-
-Comandos de verificação e geração:
-
-```powershell
+# http://localhost:3000/motorista
+npm run test:motorista
 npm run lint
 npx tsc --noEmit
 npm run build
-npx serve out
 ```
 
-O build exporta `/motorista` em `out/motorista.html` e os demais recursos estáticos em `out/`. Sirva essa pasta por HTTP, com resolução de URLs sem extensão para o HTML correspondente. Embora exista o script `npm run start`, ele executa `next start`; o modelo de publicação deste projeto serve o export estático e não utiliza esse servidor.
+**Desenvolvimento normal usa Firebase real.** Para testar gravações isoladas:
 
-O workflow [Deploy](.github/workflows/deploy.yml) roda em push para `master` ou acionamento manual. Executa `npm ci`, lint e build, depois publica o conteúdo de `out/` na VPS por SSH/rsync quando os secrets necessários estão configurados. As regras do Firestore são publicadas separadamente. Um deploy de arquivos estáticos não altera os dados persistidos no Firebase.
+```powershell
+$env:NEXT_PUBLIC_MOTORISTA_TEST_MODE = "true"
+npm run dev -- --port 3001
+```
 
-### Instalar no celular
+Modo exige NODE_ENV=development e variável explícita. Dados fictícios em `localStorage["motorista-isolated-qa-v4"]`, aviso permanente, sem login/Firestore nesse servidor. Cache `.next-motorista-qa/` separado. Build de produção não habilita esse acesso. Remova a variável na sessão ao voltar ao ambiente normal.
 
-O manifesto identifica `/motorista` como início e escopo e usa `display: "standalone"`. No Chrome, use a opção de instalação ou adicionar à tela inicial disponível no navegador. No Safari do iPhone, use **Compartilhar → Adicionar à Tela de Início**.
+Build gera out/motorista.html. Sirva out/ por HTTP, com resolução de URLs para HTML, por exemplo npx serve out. npm run start existe, mas usa next start; não é o modelo do export estático.
 
-A aplicação possui ícones próprios. Não existe service worker nem configuração explícita de cache persistente do Firestore; a instalação não oferece uma garantia de uso offline. Login, consulta e salvamento exigem conexão.
+Workflow publica o site em push para master ou acionamento manual; regras separadamente. Não houve commit, push ou deploy na execução.
 
-## Diagnóstico
+## Limitações e verificações
 
-| Situação | O que conferir |
-| --- | --- |
-| Conta sem acesso | UID autenticado e `MOTORISTA_UID`; use a conta proprietária. |
-| Popup não abre ou login falha | Permissão de popup, conexão, provedor Google habilitado e domínio autorizado no Firebase. |
-| Falha ao carregar uma coleção | Mensagem exibida, regras publicadas, projeto Firebase e correspondência do UID no caminho. |
-| Ganho recusado por duplicidade | Já há valor para a origem nessa data; edite o registro existente. |
-| Jornada ou gasto salvo não aparece | Filtro da seção, data informada e mensagem de confirmação da gravação. |
-| Meta ou percentual mostra `—` | Meta aplicável ao período e, no percentual, se o intervalo personalizado atravessa meses. |
-| Ganho por hora/KM mostra `—` | Horas ou quilômetros zerados no período. |
-| JSON recusado | Versão, tamanho, quantidade, IDs, valores e categorias referenciadas. |
-| Importação falhou após iniciar | Lotes anteriores podem ter sido aplicados; confira os dados antes de repetir. |
-| `/motorista` não abre no servidor estático | Publicação de `out/motorista.html` e resolução de `/motorista` para esse arquivo. |
-
-## Limitações atuais em relação ao plano
-
-- Relatórios não possui conteúdo; não há gráfico de evolução diária.
-- Quantidade de corridas permanece no modelo e no CSV, mas não tem campo de cadastro nem indicador na interface atual. Excluir ou mover um ganho de Uber/99 também zera a contagem da origem anterior; a contagem não é transferida.
-- A interface não mostra média por corrida, saldo por hora, saldo por quilômetro ou gasto por quilômetro.
-- A meta é editada somente para o mês atual e herdada pelos seguintes. Referências diária/semanal e necessidade diária restante de `goalPlan()` não aparecem na tela.
-- Não há exclusão de categoria, exclusão completa de jornada, paginação do histórico, importação CSV ou modo offline implementado.
-
-Estas limitações descrevem o código consultado; não indicam que as etapas ou critérios de aceite do plano original tenham sido verificados em produção.
+- Sem paginação, importação CSV, exclusão de categoria/dia, várias jornadas por data, integração com aplicativos ou offline garantido.
+- Histórico incompleto não mede consumo até complementação. Estimativa depende de classificação/premissas; saldo funciona sem elas.
+- Manifesto/ícones permitem adicionar à tela inicial; sem service worker. Login/leitura/escrita precisam de conexão.
+- Rota fora da navegação pública, noindex/nofollow, bloqueio robots e fora sitemap; isso não substitui autorização.
+- Chrome real exercitado em celular/desktop, recarga, vazio, cálculos e regras. Segundo dispositivo físico e instalação móvel não exercitados.
+- Backups, inventário privado, screenshots e dados de QA ignorados pelo Git e fora do export estático.

@@ -4,6 +4,7 @@ node_modules/
 
 # next.js
 /.next/
+/.next-motorista-qa/
 /out/
 
 # cloudflare worker
@@ -36,3 +37,8 @@ yarn-error.log*
 next-env.d.ts
 
 .playwright-mcp/
+
+# Dados pessoais e verificações locais do Motorista
+/backups/
+/output/playwright/
+/output/motorista-tests/

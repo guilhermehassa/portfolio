@@ -7,7 +7,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:motorista": "node --test tests/motorista.test.mjs"
   },
   "dependencies": {
     "firebase": "^12.19.0",

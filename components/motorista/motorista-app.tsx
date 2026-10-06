@@ -19,13 +19,11 @@ import {
 } from "firebase/auth";
 import {
   collection,
-  deleteDoc,
   doc,
   onSnapshot,
   runTransaction,
-  setDoc,
-  writeBatch,
-} from "firebase/firestore";
+  isolatedTest,
+} from "@/lib/motorista-persistence";
 import {
   motoristaAuth,
   motoristaDb,
@@ -36,668 +34,708 @@ import {
   civilDate,
   decimal,
   emptyDay,
-  expectedGoal,
+  importBatches,
   exportCsv,
-  goalForMonth,
   isDate,
   isoWeek,
   legacyGains,
   localDate,
-  maskMoney,
   monthBounds,
   money,
-  moneyInput,
   parseCents,
-  parseDecimal,
   periodBounds,
   totals,
   validateBackup,
   weekBounds,
   type Backup,
   type Category,
+  type CostProfile,
   type Day,
   type Expense,
   type Gain,
   type Goal,
+  type PlannedExpense,
 } from "@/lib/motorista";
+import {
+  dayStatus,
+  estimateDay,
+  fuelExpense,
+  hasField,
+  income,
+  monthlyPlanning,
+  plannedOccurrences,
+} from "@/lib/motorista-evolution";
+import { DayEditor, ExpenseEditor, MoneyField } from "./motorista-forms";
+import MotoristaSettings, { type SaveDocument } from "./motorista-settings";
+import MotoristaReports, { Metric, PlanningCard } from "./motorista-reports";
 import "./motorista.css";
 
-type Tab = "resumo" | "ganhos" | "gastos" | "relatorios" | "definicoes" | "backup";
-type Filter = "day" | "week" | "month" | "custom";
+type Tab =
+  "resumo" | "ganhos" | "gastos" | "relatorios" | "definicoes" | "backup";
 type PeriodSelection = {
-  filter: Filter;
+  filter: "day" | "week" | "month" | "custom";
   anchor: string;
   week: string;
   month: string;
   from: string;
   to: string;
 };
-const today = localDate();
-const initialPeriod = (): PeriodSelection => ({
-  filter: "week",
-  anchor: today,
-  week: isoWeek(today),
-  month: today.slice(0, 7),
-  from: `${today.slice(0, 7)}-01`,
-  to: today,
-});
-const selectedBounds = (period: PeriodSelection) =>
-  period.filter === "week"
-    ? weekBounds(period.week)
-    : period.filter === "month"
-      ? monthBounds(period.month)
-      : periodBounds(period.filter, period.anchor, period.from, period.to);
-const validBounds = (bounds: { from: string; to: string }) =>
-  isDate(bounds.from) && isDate(bounds.to) && bounds.from <= bounds.to;
-const fileDownload = (content: string, name: string, type: string) => {
+type Filter = PeriodSelection["filter"];
+const initialPeriod = (): PeriodSelection => {
+  const today = localDate();
+  return {
+    filter: "week",
+    anchor: today,
+    week: isoWeek(today),
+    month: today.slice(0, 7),
+    from: today.slice(0, 7) + "-01",
+    to: today,
+  };
+};
+const selectedBounds = (p: PeriodSelection) =>
+  p.filter === "week"
+    ? weekBounds(p.week)
+    : p.filter === "month"
+      ? monthBounds(p.month)
+      : periodBounds(p.filter, p.anchor, p.from, p.to);
+const validBounds = (b: { from: string; to: string }) =>
+  isDate(b.from) && isDate(b.to) && b.from <= b.to;
+const dateLabel = (date: string) => civilDate(date).toLocaleDateString("pt-BR");
+const errorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Tente novamente.";
+const canonical = (data: unknown): string =>
+  JSON.stringify(data, (_key, value) =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? Object.fromEntries(
+          Object.keys(value)
+            .sort()
+            .map((k) => [k, value[k]]),
+        )
+      : value,
+  );
+const normalize = (name: string, id: string, data: object) =>
+  name === "days"
+    ? { ...emptyDay(id), ...data, date: id }
+    : name === "goals"
+      ? { ...data, month: id }
+      : { ...data, id };
+function fileDownload(content: string, name: string, type: string) {
   const url = URL.createObjectURL(new Blob([content], { type }));
   const link = document.createElement("a");
   link.href = url;
   link.download = name;
+  document.body.appendChild(link);
   link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-};
-const ratio = (numerator: number, denominator: number, currency = true) =>
-  denominator > 0
-    ? currency
-      ? money(numerator / denominator)
-      : decimal(numerator / denominator, 2)
-    : "—";
-const dateLabel = (date: string) => civilDate(date).toLocaleDateString("pt-BR");
-const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "Tente novamente.";
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
 
 export default function MotoristaApp() {
-  const [user, setUser] = useState<User | null>(null);
-  const [authReady, setAuthReady] = useState(false);
-  const [authError, setAuthError] = useState("");
+  const [today, setToday] = useState(localDate);
+  const [user, setUser] = useState<User | null>(null),
+    [authReady, setAuthReady] = useState(false),
+    [authError, setAuthError] = useState("");
   const [tab, setTab] = useState<Tab>("resumo");
-  const [days, setDays] = useState<Day[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [savedCategories, setSavedCategories] = useState<Category[]>([]);
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [loaded, setLoaded] = useState<Record<string, boolean>>({});
-  const [loadError, setLoadError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState("");
-  const [summaryPeriod, setSummaryPeriod] = useState(initialPeriod);
-  const [gainsPeriod, setGainsPeriod] = useState(initialPeriod);
-  const [expensesPeriod, setExpensesPeriod] = useState(initialPeriod);
-  const [dayDate, setDayDate] = useState(today);
-  const [modal, setModal] = useState<"gain" | "expense" | "day" | null>(null);
-  const modalRef = useRef<HTMLDialogElement>(null);
+  const [days, setDays] = useState<Day[]>([]),
+    [expenses, setExpenses] = useState<Expense[]>([]),
+    [savedCategories, setCategories] = useState<Category[]>([]),
+    [goals, setGoals] = useState<Goal[]>([]),
+    [plans, setPlans] = useState<PlannedExpense[]>([]),
+    [profiles, setProfiles] = useState<CostProfile[]>([]);
+  const [loaded, setLoaded] = useState<Record<string, boolean>>({}),
+    [loadError, setLoadError] = useState(""),
+    [saving, setSaving] = useState(false),
+    [notice, setNotice] = useState("");
+  const saveLock = useRef(false);
+  const [gainsPeriod, setGainsPeriod] = useState(initialPeriod),
+    [expensesPeriod, setExpensesPeriod] = useState(initialPeriod),
+    [reportsPeriod, setReportsPeriod] = useState(initialPeriod);
+  const [modal, setModal] = useState<"day" | "expense" | "gain" | null>(null),
+    [dayDate, setDayDate] = useState(localDate);
+  const [expenseDraft, setExpenseDraft] = useState<
+    Partial<Expense> & { date: string }
+  >({ date: today });
   const [gainForm, setGainForm] = useState<Gain>({
-    id: "",
-    date: today,
-    source: "uber",
-    cents: 0,
-  });
-  const [gainValue, setGainValue] = useState("");
-  const [dayDraft, setDayDraft] = useState<{
-    key: string;
-    fields: {
-      hours: string;
-      km: string;
-      consumption: string;
-    };
-  } | null>(null);
-  const [expenseForm, setExpenseForm] = useState({
-    id: "",
-    date: today,
-    categoryId: "combustivel",
-    value: "",
-    note: "",
-  });
-  const [categoryEdit, setCategoryEdit] = useState<string | null>(null);
-  const [categoryName, setCategoryName] = useState("");
-  const [newCategory, setNewCategory] = useState("");
-  const [goalDraft, setGoalDraft] = useState<string | null>(null);
-  const [backup, setBackup] = useState<Backup | null>(null);
-  const [importMode, setImportMode] = useState<"new" | "update">("new");
-
-  const authorized = !!user && !!MOTORISTA_UID && user.uid === MOTORISTA_UID;
+      id: "",
+      date: today,
+      source: "uber",
+      cents: 0,
+    }),
+    [gainValue, setGainValue] = useState("");
+  const [backup, setBackup] = useState<Backup | null>(null),
+    [importMode, setImportMode] = useState<"new" | "update">("new"),
+    [importError, setImportError] = useState("");
+  const modalRef = useRef<HTMLDialogElement>(null);
+  const authorized =
+    !!user &&
+    (isolatedTest()
+      ? user.uid === "isolated-test"
+      : user.uid === MOTORISTA_UID);
+  const names = [
+    "days",
+    "expenses",
+    "categories",
+    "goals",
+    "plannedExpenses",
+    "costProfiles",
+  ];
+  const allLoaded = names.every((name) => loaded[name]);
   const categories = useMemo(
     () =>
       [
         ...DEFAULT_CATEGORIES.filter(
-          (category) =>
-            !savedCategories.some((saved) => saved.id === category.id),
+          (c) => !savedCategories.some((s) => s.id === c.id),
         ),
         ...savedCategories,
       ].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
     [savedCategories],
   );
-  const allLoaded = ["days", "expenses", "categories", "goals"].every(
-    (key) => loaded[key],
+  const currentPlan = monthlyPlanning({
+    month: today.slice(0, 7),
+    reference: today,
+    goals,
+    days,
+    expenses,
+    categories,
+    plans,
+  });
+  const lastDay = [...days]
+    .filter(
+      (d) =>
+        d.status !== "off" &&
+        (d.status || income(d) > 0 || d.minutes > 0 || d.km > 0),
+    )
+    .filter((d) => d.date <= today)
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  const gainsBounds = selectedBounds(gainsPeriod),
+    expenseBounds = selectedBounds(expensesPeriod),
+    reportBounds = selectedBounds(reportsPeriod);
+  const listedDays = validBounds(gainsBounds)
+    ? [...days]
+        .filter(
+          (d) =>
+            d.date >= gainsBounds.from &&
+            d.date <= gainsBounds.to &&
+            (d.status || income(d) > 0 || d.minutes > 0 || d.km > 0),
+        )
+        .sort((a, b) => b.date.localeCompare(a.date))
+    : [];
+  const listedExpenses = validBounds(expenseBounds)
+    ? expenses.filter(
+        (e) => e.date >= expenseBounds.from && e.date <= expenseBounds.to,
+      )
+    : [];
+  const expenseDates = [...new Set(listedExpenses.map((e) => e.date))].sort(
+    (a, b) => b.localeCompare(a),
   );
-  const bounds = selectedBounds(summaryPeriod);
-  const periodValid = validBounds(bounds);
-  const shownDays = useMemo(
-    () =>
-      periodValid
-        ? days.filter((day) => day.date >= bounds.from && day.date <= bounds.to)
-        : [],
-    [days, bounds.from, bounds.to, periodValid],
-  );
-  const shownExpenses = useMemo(
-    () =>
-      periodValid
-        ? expenses.filter(
-            (expense) =>
-              expense.date >= bounds.from && expense.date <= bounds.to,
-          )
-        : [],
-    [expenses, bounds.from, bounds.to, periodValid],
-  );
-  const summary = totals(shownDays, shownExpenses);
-  const expenseByCategory = useMemo(() => {
-    const amounts = new Map<string, number>();
-    shownExpenses.forEach((expense) => {
-      amounts.set(
-        expense.categoryId,
-        (amounts.get(expense.categoryId) ?? 0) + expense.cents,
-      );
-    });
-    return [...amounts]
-      .map(([id, cents]) => ({
-        id,
-        name: categories.find((category) => category.id === id)?.name ?? id,
-        cents,
-      }))
-      .sort((a, b) => b.cents - a.cents || a.name.localeCompare(b.name, "pt-BR"));
-  }, [shownExpenses, categories]);
-  const expected = periodValid
-    ? expectedGoal(bounds.from, bounds.to, goals)
-    : null;
-  const missing =
-    expected === null ? null : Math.max(expected - summary.balance, 0);
-  const progressMonth =
-    periodValid &&
-    !(summaryPeriod.filter === "custom" && bounds.from.slice(0, 7) !== bounds.to.slice(0, 7))
-      ? bounds.from.slice(0, 7)
-      : null;
-  const monthlyGoal = progressMonth
-    ? goalForMonth(goals, progressMonth)?.cents
-    : null;
-  const monthlyBalance = progressMonth
-    ? totals(
-        days.filter((day) => day.date.startsWith(progressMonth)),
-        expenses.filter((expense) => expense.date.startsWith(progressMonth)),
-      ).balance
-    : 0;
-  const monthlyPercent = monthlyGoal
-    ? (monthlyBalance / monthlyGoal) * 100
-    : null;
-  const currentMonth = localDate().slice(0, 7);
-  const goal = goalForMonth(goals, currentMonth)?.cents ?? 0;
-  const selectedDay =
-    days.find((item) => item.date === dayDate) ?? emptyDay(dayDate);
-  const dayForm =
-    dayDraft?.key === dayDate
-      ? dayDraft.fields
-      : {
-          hours: selectedDay.minutes
-            ? (selectedDay.minutes / 60).toFixed(2).replace(".", ",")
-            : "",
-          km: selectedDay.km ? String(selectedDay.km).replace(".", ",") : "",
-          consumption: selectedDay.consumption
-            ? String(selectedDay.consumption).replace(".", ",")
-            : "",
-        };
-  const setDayForm = (fields: typeof dayForm) =>
-    setDayDraft({ key: dayDate, fields });
-  const goalInput = goalDraft ?? moneyInput(goal);
+  const path = (name: string, id: string) =>
+    doc(motoristaDb, "users", user!.uid, name, id);
 
+  useEffect(() => {
+    const timer = setInterval(() => setToday(localDate()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    if (isolatedTest()) {
+      queueMicrotask(() => {
+        setUser({
+          uid: "isolated-test",
+          displayName: "Teste isolado",
+          email: null,
+          photoURL: null,
+        } as User);
+        setAuthReady(true);
+      });
+      return;
+    }
+    return onAuthStateChanged(
+      motoristaAuth,
+      (current) => {
+        setLoaded({});
+        setLoadError("");
+        setUser(current);
+        setAuthReady(true);
+      },
+      (error) => {
+        setAuthError(errorMessage(error));
+        setAuthReady(true);
+      },
+    );
+  }, []);
+  useEffect(() => {
+    if (!authorized || !user) return;
+    const listen = <T,>(name: string, setter: (items: T[]) => void) =>
+      onSnapshot(
+        collection(motoristaDb, "users", user.uid, name),
+        (snapshot) => {
+          setter(
+            snapshot.docs.map(
+              (item) => normalize(name, item.id, item.data()) as T,
+            ),
+          );
+          setLoaded((current) => ({ ...current, [name]: true }));
+        },
+        (error) =>
+          setLoadError(
+            "Falha ao carregar " + name + ": " + errorMessage(error),
+          ),
+      );
+    const stops = [
+      listen<Day>("days", setDays),
+      listen<Expense>("expenses", setExpenses),
+      listen<Category>("categories", setCategories),
+      listen<Goal>("goals", setGoals),
+      listen<PlannedExpense>("plannedExpenses", setPlans),
+      listen<CostProfile>("costProfiles", setProfiles),
+    ];
+    return () => stops.forEach((stop) => stop());
+  }, [authorized, user]);
   useEffect(() => {
     if (!modal) return;
     const dialog = modalRef.current;
     dialog?.showModal();
     return () => dialog?.close();
   }, [modal]);
-
-  useEffect(
-    () =>
-      onAuthStateChanged(
-        motoristaAuth,
-        (current) => {
-          setLoaded({});
-          setLoadError("");
-          setUser(current);
-          setAuthReady(true);
-        },
-        (error) => {
-          setAuthError(errorMessage(error));
-          setAuthReady(true);
-        },
-      ),
-    [],
-  );
-  useEffect(() => {
-    if (!authorized || !user) return;
-    const listen = <T,>(
-      name: string,
-      setter: (items: T[]) => void,
-      transform: (id: string, data: Record<string, unknown>) => T,
-    ) =>
-      onSnapshot(
-        collection(motoristaDb, "users", user.uid, name),
-        (snapshot) => {
-          setter(snapshot.docs.map((item) => transform(item.id, item.data())));
-          setLoaded((current) => ({ ...current, [name]: true }));
-        },
-        (error) =>
-          setLoadError(`Falha ao carregar ${name}: ${errorMessage(error)}`),
-      );
-    const unsubscribers = [
-      listen<Day>("days", setDays, (id, data) => ({
-        ...emptyDay(id),
-        ...data,
-        date: id,
-      })),
-      listen<Expense>(
-        "expenses",
-        setExpenses,
-        (id, data) => ({ id, ...data }) as Expense,
-      ),
-      listen<Category>(
-        "categories",
-        setSavedCategories,
-        (id, data) => ({ id, ...data }) as Category,
-      ),
-      listen<Goal>(
-        "goals",
-        setGoals,
-        (id, data) => ({ month: id, ...data }) as Goal,
-      ),
-    ];
-    return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
-  }, [authorized, user]);
-
-  async function withSave(action: () => Promise<void>, success: string) {
+  async function withSave(
+    action: () => Promise<void>,
+    success: string,
+  ): Promise<boolean> {
+    if (saveLock.current) return false;
+    saveLock.current = true;
     setSaving(true);
     setNotice("");
     try {
       await action();
       setNotice(success);
+      return true;
     } catch (error) {
-      setNotice(`Não foi possível salvar: ${errorMessage(error)}`);
+      setNotice("Não foi possível salvar: " + errorMessage(error));
+      return false;
     } finally {
+      saveLock.current = false;
       setSaving(false);
     }
   }
-  const path = (name: string, id: string) =>
-    doc(motoristaDb, "users", user!.uid, name, id);
-
-  async function saveDay(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!isDate(dayDate)) return setNotice("Selecione uma data válida.");
-    const hours = parseDecimal(dayForm.hours);
-    const km = parseDecimal(dayForm.km);
-    const consumption = parseDecimal(dayForm.consumption);
-    if (
-      !Number.isFinite(hours) ||
-      hours < 0 ||
-      !Number.isSafeInteger(Math.round(hours * 60)) ||
-      !Number.isFinite(km) ||
-      km < 0 ||
-      !Number.isFinite(consumption) ||
-      consumption < 0
-    )
-      return setNotice("Revise os valores de horas, quilômetros e consumo.");
-    await withSave(async () => {
-      await setDoc(
-        path("days", dayDate),
-        {
-          date: dayDate,
-          minutes: Math.round(hours * 60),
-          km,
-          consumption,
-        },
-        { merge: true },
-      );
-      setDayDraft(null);
-      setModal(null);
-    }, "Dados do dia salvos. Indicadores atualizados.");
-  }
-
-  const gainsBounds = selectedBounds(gainsPeriod);
-  const gainsPeriodValid = validBounds(gainsBounds);
-  const registeredDays = [...days]
-    .filter(
-      (day) =>
-        gainsPeriodValid &&
-        day.date >= gainsBounds.from &&
-        day.date <= gainsBounds.to &&
-        (day.uberCents > 0 ||
-          day.ninetyNineCents > 0 ||
-          day.otherCents > 0 ||
-          day.minutes > 0 ||
-          day.km > 0 ||
-          (day.consumption ?? 0) > 0),
-    )
-    .sort((a, b) => b.date.localeCompare(a.date));
-  const gainsTotal = totals(registeredDays, []).gains;
-  const expensesBounds = selectedBounds(expensesPeriod);
-  const expensesPeriodValid = validBounds(expensesBounds);
-  const listedExpenses = expenses.filter(
-    (expense) =>
-      expensesPeriodValid &&
-      expense.date >= expensesBounds.from &&
-      expense.date <= expensesBounds.to,
-  );
-  const expensesTotal = listedExpenses.reduce(
-    (sum, expense) => sum + expense.cents,
-    0,
-  );
-  const expenseDays = [
-    ...new Set(listedExpenses.map((expense) => expense.date)),
-  ]
-    .sort((a, b) => b.localeCompare(a))
-    .map((date) => {
-      const items = listedExpenses.filter((expense) => expense.date === date);
-      return {
-        date,
-        items,
-        total: items.reduce((sum, expense) => sum + expense.cents, 0),
-      };
+  const saveDocument: SaveDocument = async (name, id, data, previous) =>
+    withSave(async () => {
+      await runTransaction(motoristaDb, async (transaction) => {
+        const ref = path(name, id),
+          snapshot = await transaction.get(ref);
+        if (
+          snapshot.exists() &&
+          (!previous ||
+            canonical(normalize(name, id, snapshot.data())) !==
+              canonical(normalize(name, id, previous)))
+        )
+          throw new Error(
+            "Este registro foi alterado em outra sessão. Reabra o formulário antes de salvar.",
+          );
+        if (previous && !snapshot.exists() && name !== "categories")
+          throw new Error(
+            "Este registro foi removido em outra sessão. Reabra o formulário.",
+          );
+        transaction.set(ref, data, { merge: true });
+      });
+    }, "Registro salvo. Planejamento e relatórios atualizados.");
+  const openDay = (date = today) => {
+    setDayDate(date);
+    setNotice("");
+    setModal("day");
+  };
+  const newExpense = (date = today, fuel = false) => {
+    setExpenseDraft({
+      date,
+      categoryId: fuel ? "combustivel" : "outros",
+      kind: fuel ? "fuel" : "expense",
     });
-  function newGain(date = localDate()) {
+    setNotice("");
+    setModal("expense");
+  };
+  const editExpense = (expense: Expense) => {
+    setExpenseDraft({
+      ...expense,
+      kind: fuelExpense(expense, categories) ? "fuel" : "expense",
+    });
+    setNotice("");
+    setModal("expense");
+  };
+  const newGain = (date = today) => {
     setGainForm({ id: "", date, source: "uber", cents: 0 });
     setGainValue("");
-    setModal("gain");
     setNotice("");
-  }
-  function editGain(gain: Gain) {
+    setModal("gain");
+  };
+  const editGain = (gain: Gain) => {
     setGainForm(gain);
-    setGainValue(moneyInput(gain.cents));
+    setGainValue(money(gain.cents));
+    setNotice("");
     setModal("gain");
-    setNotice("");
+  };
+
+  async function saveExpense(expense: Expense, previous?: Expense) {
+    return withSave(async () => {
+      await runTransaction(motoristaDb, async (tx) => {
+        const ref = path("expenses", expense.id),
+          current = await tx.get(ref);
+        if (
+          current.exists() &&
+          (!previous ||
+            canonical(normalize("expenses", expense.id, current.data())) !==
+              canonical(previous))
+        )
+          throw new Error("Gasto alterado em outra sessão. Reabra a edição.");
+        if (previous && !current.exists())
+          throw new Error("Gasto removido em outra sessão.");
+        const oldKey = previous?.plannedExpenseId,
+          newKey = expense.plannedExpenseId;
+        const planId = (key: string) => key.slice(0, -12);
+        const ids = [
+          ...new Set(
+            [oldKey, newKey].filter((k): k is string => !!k).map(planId),
+          ),
+        ];
+        const snapshots = await Promise.all(
+          ids.map(async (id) => ({
+            id,
+            snapshot: await tx.get(path("plannedExpenses", id)),
+          })),
+        );
+        const changes = new Map(
+          snapshots.map(({ id, snapshot }) => [
+            id,
+            { ...snapshot.data(), id } as PlannedExpense,
+          ]),
+        );
+        const categoryRef = path("categories", expense.categoryId),
+          category = await tx.get(categoryRef);
+        if (oldKey) {
+          const old = changes.get(planId(oldKey));
+          if (!old || old.payments?.[oldKey] !== expense.id)
+            throw new Error("O vínculo anterior mudou. Reabra o gasto.");
+          old.payments = { ...old.payments };
+          delete old.payments[oldKey];
+        }
+        if (newKey) {
+          const next = changes.get(planId(newKey));
+          if (!next?.date) throw new Error("Previsão não encontrada.");
+          if (
+            !plannedOccurrences([next], newKey.slice(-10, -3), []).some(
+              (o) => o.key === newKey,
+            )
+          )
+            throw new Error("Ocorrência da previsão inválida.");
+          if (next.payments?.[newKey] && next.payments[newKey] !== expense.id)
+            throw new Error(
+              "Essa previsão já tem um pagamento. Escolha outra.",
+            );
+          next.payments = { ...next.payments, [newKey]: expense.id };
+        }
+        changes.forEach((data, id) =>
+          tx.set(path("plannedExpenses", id), data, { merge: true }),
+        );
+        if (!category.exists())
+          tx.set(
+            categoryRef,
+            categories.find((c) => c.id === expense.categoryId)!,
+          );
+        tx.set(ref, expense, { merge: true });
+      });
+    }, "Gasto salvo e previsão reconciliada.");
   }
-  function editDay(date: string) {
-    setDayDate(date);
-    setDayDraft(null);
-    setModal("day");
-    setNotice("");
+  async function removeExpense(expense: Expense) {
+    if (
+      !window.confirm(
+        "Excluir o gasto de " +
+          money(expense.cents) +
+          " em " +
+          dateLabel(expense.date) +
+          "?",
+      )
+    )
+      return;
+    await withSave(async () => {
+      await runTransaction(motoristaDb, async (tx) => {
+        const ref = path("expenses", expense.id),
+          snap = await tx.get(ref);
+        if (
+          !snap.exists() ||
+          canonical(normalize("expenses", expense.id, snap.data())) !==
+            canonical(expense)
+        )
+          throw new Error("Gasto alterado em outra sessão. Reabra a lista.");
+        const key = expense.plannedExpenseId;
+        const planRef = key ? path("plannedExpenses", key.slice(0, -12)) : null;
+        const planSnap = planRef ? await tx.get(planRef) : null;
+        if (key && planRef) {
+          const data = planSnap?.data() as PlannedExpense | undefined;
+          if (!data || data.payments?.[key] !== expense.id)
+            throw new Error("Vínculo alterado. Reabra a lista.");
+          const payments = { ...data.payments };
+          delete payments[key];
+          tx.set(planRef, { payments }, { merge: true });
+        }
+        tx.delete(ref);
+      });
+    }, "Gasto excluído. A previsão vinculada voltou a ficar pendente.");
   }
-  function newExpense(date = localDate()) {
-    setExpenseForm({
-      id: "",
-      date,
-      categoryId: "combustivel",
-      value: "",
-      note: "",
-    });
-    setModal("expense");
-    setNotice("");
-  }
-  function editExpense(expense: Expense) {
-    setExpenseForm({
-      id: expense.id,
-      date: expense.date,
-      categoryId: expense.categoryId,
-      value: moneyInput(expense.cents),
-      note: expense.note ?? "",
-    });
-    setModal("expense");
-    setNotice("");
-  }
-  const clearLegacyGain = (source: Gain["source"]) => ({
-    [`${source}Cents`]: 0,
-    ...(source === "uber" ? { uberRides: 0 } : {}),
-    ...(source === "ninetyNine" ? { ninetyNineRides: 0 } : {}),
-  });
   async function saveGain(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const cents = parseCents(gainValue);
     if (!isDate(gainForm.date) || !Number.isSafeInteger(cents) || cents <= 0)
       return setNotice("Informe data e valor positivo válidos.");
-    const originalDate = gainForm.id ? gainForm.id.split(":")[1] : "";
-    const originalSource = gainForm.id
-      ? (gainForm.id.split(":")[2] as Gain["source"])
-      : null;
-    await withSave(
+    const originalDate = gainForm.id ? gainForm.id.split(":")[1] : "",
+      originalSource = gainForm.id
+        ? (gainForm.id.split(":")[2] as Gain["source"])
+        : null;
+    const success = await withSave(
       async () => {
-        await runTransaction(motoristaDb, async (transaction) => {
-          const destination = path("days", gainForm.date);
-          const origin = originalDate ? path("days", originalDate) : null;
-          const sameDate = originalDate === gainForm.date;
-          const originSnapshot = origin ? await transaction.get(origin) : null;
-          const destinationSnapshot =
-            sameDate && originSnapshot
-              ? originSnapshot
-              : await transaction.get(destination);
-          const destinationDay = {
-            ...emptyDay(gainForm.date),
-            ...destinationSnapshot.data(),
-          };
-          const key = `${gainForm.source}Cents` as const;
-          const sameSlot = sameDate && originalSource === gainForm.source;
-          if (destinationDay[key] > 0 && !sameSlot)
+        await runTransaction(motoristaDb, async (tx) => {
+          const destination = path("days", gainForm.date),
+            origin = originalDate ? path("days", originalDate) : null;
+          const originSnap = origin ? await tx.get(origin) : null;
+          const destinationSnap =
+            originalDate === gainForm.date && originSnap
+              ? originSnap
+              : await tx.get(destination);
+          const dest = {
+              ...emptyDay(gainForm.date),
+              ...destinationSnap.data(),
+            },
+            key = `${gainForm.source}Cents` as const,
+            same =
+              originalDate === gainForm.date &&
+              originalSource === gainForm.source;
+          if (dest[key] > 0 && !same)
             throw new Error(
-              "Já existe um ganho desta origem nessa data. Edite o registro existente.",
+              "Já existe ganho desta origem nessa data. Edite o existente.",
             );
-          if (originalSource && origin) {
-            const previous = clearLegacyGain(originalSource);
-            if (sameSlot) {
-              transaction.set(
-                destination,
-                { date: gainForm.date, [key]: cents },
-                { merge: true },
-              );
-            } else if (sameDate) {
-              transaction.set(
-                destination,
-                { date: gainForm.date, ...previous, [key]: cents },
-                { merge: true },
-              );
-            } else {
-              transaction.set(
-                origin,
-                { date: originalDate, ...previous },
-                { merge: true },
-              );
-              transaction.set(
-                destination,
-                { date: gainForm.date, [key]: cents },
-                { merge: true },
-              );
-            }
-          } else {
-            transaction.set(
-              destination,
-              { date: gainForm.date, [key]: cents },
+          if (dest.status === "off")
+            throw new Error(
+              "Esta data está marcada como folga. Abra o dia e revise sua situação.",
+            );
+          const old = originSnap?.data();
+          if (
+            originalSource &&
+            (!old || old[`${originalSource}Cents`] !== gainForm.cents)
+          )
+            throw new Error("Ganho alterado em outra sessão. Reabra a edição.");
+          if (origin && originalSource && !same) {
+            const oldFilled = {
+              ...(old?.filled ?? {}),
+              [`${originalSource}Cents`]: false,
+            };
+            tx.set(
+              origin,
+              {
+                date: originalDate,
+                [`${originalSource}Cents`]: 0,
+                filled: oldFilled,
+              },
               { merge: true },
             );
           }
+          const filled = { ...dest.filled, [key]: true };
+          if (originalDate === gainForm.date && originalSource && !same)
+            filled[`${originalSource}Cents`] = false;
+          tx.set(
+            destination,
+            {
+              date: gainForm.date,
+              [key]: cents,
+              filled,
+              ...(!destinationSnap.exists()
+                ? { status: "pending", origin: "user" }
+                : {}),
+            },
+            { merge: true },
+          );
         });
-        setModal(null);
-        setGainValue("");
       },
-      gainForm.id ? "Ganho atualizado." : "Ganho registrado.",
+      gainForm.id ? "Ganho atualizado." : "Ganho registrado como parte do dia.",
     );
+    if (success) setModal(null);
   }
   async function removeGain(gain: Gain) {
     if (
       !window.confirm(
-        `Excluir o ganho de ${money(gain.cents)} em ${dateLabel(gain.date)}?`,
+        "Excluir ganho de " +
+          money(gain.cents) +
+          " em " +
+          dateLabel(gain.date) +
+          "?",
       )
     )
       return;
-    await withSave(
-      () =>
-        setDoc(
-          path("days", gain.date),
-          { date: gain.date, ...clearLegacyGain(gain.source) },
+    await withSave(async () => {
+      await runTransaction(motoristaDb, async (tx) => {
+        const ref = path("days", gain.date),
+          snapshot = await tx.get(ref);
+        const data = snapshot.data();
+        if (data?.[`${gain.source}Cents`] !== gain.cents)
+          throw new Error("Ganho alterado em outra sessão.");
+        tx.set(
+          ref,
+          {
+            [`${gain.source}Cents`]: 0,
+            filled: { ...data.filled, [`${gain.source}Cents`]: false },
+            ...(["uber", "ninetyNine", "other"].every(
+              (source) =>
+                source === gain.source || !(data[`${source}Cents`] > 0),
+            )
+              ? { status: "pending" }
+              : {}),
+          },
           { merge: true },
-        ),
-      "Ganho excluído.",
-    );
-  }
-
-  async function saveExpense(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const cents = parseCents(expenseForm.value);
-    if (
-      !isDate(expenseForm.date) ||
-      !categories.some((item) => item.id === expenseForm.categoryId) ||
-      !Number.isSafeInteger(cents) ||
-      cents <= 0 ||
-      expenseForm.note.length > 500
-    )
-      return setNotice(
-        "Informe data, categoria e valor positivo válidos. A observação pode ter até 500 caracteres.",
-      );
-    const id = expenseForm.id || crypto.randomUUID();
-    const expense: Expense = {
-      id,
-      date: expenseForm.date,
-      categoryId: expenseForm.categoryId,
-      cents,
-      note: expenseForm.note.trim(),
-    };
-    await withSave(
-      async () => {
-        const batch = writeBatch(motoristaDb);
-        if (
-          DEFAULT_CATEGORIES.some((item) => item.id === expense.categoryId) &&
-          !savedCategories.some((item) => item.id === expense.categoryId)
-        ) {
-          batch.set(
-            path("categories", expense.categoryId),
-            DEFAULT_CATEGORIES.find((item) => item.id === expense.categoryId)!,
-          );
-        }
-        batch.set(path("expenses", id), expense);
-        await batch.commit();
-        setModal(null);
-      },
-      expenseForm.id ? "Gasto atualizado." : "Gasto salvo.",
-    );
-  }
-  async function removeExpense(expense: Expense) {
-    if (
-      !window.confirm(
-        `Excluir o gasto de ${money(expense.cents)} em ${dateLabel(expense.date)}?`,
-      )
-    )
-      return;
-    await withSave(
-      () => deleteDoc(path("expenses", expense.id)),
-      "Gasto excluído.",
-    );
-  }
-  async function saveCategory(id: string | null, name: string) {
-    const trimmed = name.trim();
-    if (
-      !trimmed ||
-      trimmed.length > 80 ||
-      categories.some(
-        (category) =>
-          category.name.toLocaleLowerCase("pt-BR") ===
-            trimmed.toLocaleLowerCase("pt-BR") && category.id !== id,
-      )
-    )
-      return setNotice("Informe um nome único com até 80 caracteres.");
-    const nextId = id ?? crypto.randomUUID();
-    await withSave(async () => {
-      await setDoc(path("categories", nextId), { id: nextId, name: trimmed });
-      setCategoryEdit(null);
-      setNewCategory("");
-    }, "Categoria salva sem alterar os gastos anteriores.");
-  }
-  async function saveGoal(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const cents = parseCents(goalInput);
-    if (!Number.isSafeInteger(cents) || cents <= 0)
-      return setNotice("Informe uma meta mensal positiva válida.");
-    const month = localDate().slice(0, 7);
-    await withSave(async () => {
-      await setDoc(path("goals", month), { month, cents });
-      setGoalDraft(null);
-    }, "Meta mensal salva para este mês e os seguintes.");
+        );
+      });
+    }, "Ganho excluído; demais dados da jornada preservados.");
   }
   function downloadJson() {
     const payload: Backup = {
-      version: 3,
+      version: 4,
       exportedAt: new Date().toISOString(),
       days,
       expenses,
       categories,
       goals,
+      plannedExpenses: plans,
+      costProfiles: profiles,
     };
+    validateBackup(payload);
     fileDownload(
       JSON.stringify(payload, null, 2),
-      `motorista-backup-${today}.json`,
+      "motorista-backup-" + today + ".json",
       "application/json",
     );
   }
   async function chooseBackup(file?: File) {
     setBackup(null);
+    setImportError("");
     if (!file) return;
-    if (file.size > 5_000_000) return setNotice("O arquivo excede 5 MB.");
+    if (file.size > 5000000) return setImportError("O arquivo excede 5 MB.");
     try {
       setBackup(validateBackup(JSON.parse(await file.text())));
-      setNotice("Backup validado. Confira a prévia antes de importar.");
     } catch (error) {
-      setNotice(errorMessage(error));
+      setImportError(errorMessage(error));
     }
   }
+  const currentLists = {
+    days,
+    expenses,
+    categories: savedCategories,
+    goals,
+    plannedExpenses: plans,
+    costProfiles: profiles,
+  };
+  const itemId = (name: string, item: object) =>
+    name === "days"
+      ? (item as Day).date
+      : name === "goals"
+        ? (item as Goal).month
+        : (item as { id: string }).id;
+  const importEntries = backup
+    ? Object.entries(currentLists)
+        .flatMap(([name]) =>
+          ((backup[name as keyof Backup] as object[]) ?? []).map((data) => ({
+            name,
+            id: itemId(name, data),
+            data,
+          })),
+        )
+        .filter(
+          (e) =>
+            importMode === "update" ||
+            !currentLists[e.name as keyof typeof currentLists].some(
+              (item) => itemId(e.name, item) === e.id,
+            ),
+        )
+    : [];
   async function importBackup() {
     if (!backup) return;
-    const count =
-      backup.days.length +
-      backup.expenses.length +
-      backup.categories.length +
-      backup.goals.length;
     if (
       !window.confirm(
-        `Importar ${count} itens? ${importMode === "new" ? "Itens existentes com o mesmo ID serão preservados." : "Itens existentes com o mesmo ID serão atualizados."} Nenhum item ausente do backup será apagado.`,
+        "Importar " +
+          importEntries.length +
+          " itens? " +
+          (importMode === "new"
+            ? "Itens existentes serão preservados."
+            : "Itens de mesmo ID serão atualizados.") +
+          " Itens ausentes não serão apagados.",
       )
     )
       return;
-    const currentIds: Record<string, Set<string>> = {
-      days: new Set(days.map((item) => item.date)),
-      expenses: new Set(expenses.map((item) => item.id)),
-      categories: new Set(savedCategories.map((item) => item.id)),
-      goals: new Set(goals.map((item) => item.month)),
-    };
-    const entries = [
-      ...backup.categories.map((item) => ({
-        name: "categories",
-        id: item.id,
-        data: item,
-      })),
-      ...backup.days.map((item) => ({
-        name: "days",
-        id: item.date,
-        data: item,
-      })),
-      ...backup.expenses.map((item) => ({
-        name: "expenses",
-        id: item.id,
-        data: item,
-      })),
-      ...backup.goals.map((item) => ({
-        name: "goals",
-        id: item.month,
-        data: item,
-      })),
-    ].filter(
-      (item) => importMode === "update" || !currentIds[item.name].has(item.id),
-    );
-    await withSave(
-      async () => {
-        for (let offset = 0; offset < entries.length; offset += 400) {
-          const batch = writeBatch(motoristaDb);
-          entries
-            .slice(offset, offset + 400)
-            .forEach((item) => batch.set(path(item.name, item.id), item.data));
-          await batch.commit();
+    await withSave(async () => {
+      // Valida também o estado combinado: preservar por ID não pode quebrar vínculos.
+      const combined = Object.fromEntries(
+        Object.entries(currentLists).map(([name, current]) => {
+          const map = new Map(
+            current.map((item) => [itemId(name, item), item]),
+          );
+          importEntries
+            .filter((e) => e.name === name)
+            .forEach((e) => map.set(e.id, e.data as never));
+          return [name, [...map.values()]];
+        }),
+      );
+      validateBackup({
+        version: 4,
+        exportedAt: new Date().toISOString(),
+        ...combined,
+        categories: [
+          ...categories.filter(
+            (c) =>
+              !(combined.categories as Category[]).some((x) => x.id === c.id),
+          ),
+          ...combined.categories,
+        ],
+      });
+      // Lotes transacionais detectam alterações ocorridas após a prévia.
+      const batches = importBatches(importEntries);
+      let confirmed = 0;
+      for (const group of batches) {
+        try {
+          await runTransaction(motoristaDb, async (tx) => {
+            const checks = await Promise.all(
+              group.map(async (e) => ({
+                entry: e,
+                snapshot: await tx.get(path(e.name, e.id)),
+              })),
+            );
+            for (const { entry: e, snapshot } of checks) {
+              const previous = currentLists[
+                e.name as keyof typeof currentLists
+              ].find((item) => itemId(e.name, item) === e.id);
+              if (
+                snapshot.exists() &&
+                (!previous ||
+                  canonical(normalize(e.name, e.id, snapshot.data())) !==
+                    canonical(normalize(e.name, e.id, previous)))
+              )
+                throw new Error(
+                  "Registro alterado desde a prévia: " + e.name + "/" + e.id,
+                );
+              if (previous && !snapshot.exists())
+                throw new Error("Registro removido desde a prévia.");
+            }
+            group.forEach((e) => tx.set(path(e.name, e.id), e.data));
+          });
+          confirmed += group.length;
+        } catch (error) {
+          throw new Error(
+            "Importação interrompida após " +
+              confirmed +
+              " itens confirmados. " +
+              errorMessage(error) +
+              " Reexporte e confira antes de repetir.",
+          );
         }
-        setBackup(null);
-      },
-      `${entries.length} ${entries.length === 1 ? "item importado" : "itens importados"}. ${importMode === "new" ? `${count - entries.length} já existiam e foram preservados.` : "Itens com o mesmo ID foram atualizados."}`,
-    );
+      }
+      setBackup(null);
+    }, importEntries.length + " itens importados sem duplicação.");
+  }
+  function reportFor(date: string) {
+    setReportsPeriod({ ...initialPeriod(), filter: "day", anchor: date });
+    setTab("relatorios");
   }
 
   if (!authReady)
@@ -708,7 +746,7 @@ export default function MotoristaApp() {
         </div>
       </main>
     );
-  if (!user || !authorized)
+  if (!authorized || !user)
     return (
       <main className="motorista">
         <div className="motorista-shell motorista-login">
@@ -721,22 +759,19 @@ export default function MotoristaApp() {
           </div>
           <h1>Seus números, no seu ritmo.</h1>
           <p>
-            Entre com a conta Google autorizada para consultar e registrar seus
-            dados. É necessária conexão com a internet.
+            Entre com a conta Google autorizada. É necessária conexão com a
+            internet.
           </p>
-          {user ? (
-            <div className="motorista-alert">
+          {user && (
+            <p className="motorista-alert">
               Esta conta não tem acesso aos dados.
-              {!MOTORISTA_UID && (
-                <>
-                  <br />
-                  Configuração pendente. UID da conta conectada:{" "}
-                  <code>{user.uid}</code>
-                </>
-              )}
-            </div>
-          ) : null}
-          {authError && <div className="motorista-alert">{authError}</div>}
+            </p>
+          )}
+          {authError && (
+            <p className="motorista-alert" role="alert">
+              {authError}
+            </p>
+          )}
           <button
             className="motorista-primary"
             onClick={async () => {
@@ -761,7 +796,6 @@ export default function MotoristaApp() {
         </div>
       </main>
     );
-
   return (
     <main className="motorista">
       <div className="motorista-shell">
@@ -774,356 +808,247 @@ export default function MotoristaApp() {
             </div>
           </div>
           <div className="motorista-account">
-            <span className="motorista-account-name">{user.displayName || user.email}</span>
             <AccountMenu
               user={user}
-              onSettings={() => {
-                setTab("definicoes");
-                setNotice("");
-                window.scrollTo({ top: 0, behavior: "auto" });
-              }}
-              onExport={() => {
-                setTab("backup");
-                setNotice("");
-                window.scrollTo({ top: 0, behavior: "auto" });
-              }}
-              onSignOut={async () => {
-                try {
-                  await signOut(motoristaAuth);
-                } catch (error) {
-                  setNotice(`Não foi possível sair: ${errorMessage(error)}`);
-                }
-              }}
+              onSettings={() => setTab("definicoes")}
+              onExport={() => setTab("backup")}
+              onSignOut={() =>
+                isolatedTest() ? setUser(null) : signOut(motoristaAuth)
+              }
             />
           </div>
         </header>
-        <nav className="motorista-tabs" aria-label="Seções do controle">
-          {(
-            [
-              ["resumo", "Início"],
-              ["ganhos", "Ganhos"],
-              ["gastos", "Gastos"],
-              ["relatorios", "Relatórios"],
-            ] as [Tab, string][]
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={tab === id ? "active" : ""}
-              aria-current={tab === id ? "true" : undefined}
-              onClick={() => {
-                setTab(id);
-                setNotice("");
-                window.scrollTo({ top: 0, behavior: "auto" });
-              }}
-            >
-              <TabIcon tab={id} />
-              <span>{label}</span>
-            </button>
-          ))}
+        {isolatedTest() && (
+          <p className="motorista-alert">
+            Teste isolado · dados fictícios locais · Firebase real não é
+            acessado
+          </p>
+        )}
+        <nav className="motorista-tabs" aria-label="Seções do motorista">
+          {(["resumo", "ganhos", "gastos", "relatorios"] as Tab[]).map(
+            (item) => (
+              <button
+                key={item}
+                aria-current={tab === item ? "page" : undefined}
+                className={tab === item ? "active" : ""}
+                onClick={() => setTab(item)}
+              >
+                <TabIcon tab={item} />
+                {item === "resumo"
+                  ? "Início"
+                  : item === "ganhos"
+                    ? "Ganhos"
+                    : item === "gastos"
+                      ? "Gastos"
+                      : "Relatórios"}
+              </button>
+            ),
+          )}
         </nav>
         {notice && (
-          <div
-            role="status"
-            className={`motorista-alert ${notice.startsWith("Não") || notice.startsWith("Revise") || notice.startsWith("Informe") || notice.startsWith("Há") ? "error" : "success"}`}
+          <p
+            role={notice.startsWith("Não") ? "alert" : "status"}
+            className={
+              "motorista-alert " + (notice.startsWith("Não") ? "error" : "")
+            }
           >
             {notice}
-          </div>
+          </p>
         )}
-        {loadError && (
-          <div role="alert" className="motorista-alert error">
-            {loadError}
+        {loadError ? (
+          <div className="motorista-card">
+            <p className="motorista-alert" role="alert">
+              {loadError}
+            </p>
+            <button
+              className="motorista-secondary"
+              onClick={() => window.location.reload()}
+            >
+              Tentar carregar novamente
+            </button>
           </div>
-        )}
-        {!allLoaded && !loadError ? (
-          <p className="motorista-loading">Carregando registros…</p>
-        ) : null}
-        {allLoaded && (
+        ) : !allLoaded ? (
+          <p>Carregando seus registros…</p>
+        ) : (
           <>
             {tab === "resumo" && (
               <section className="motorista-section">
-                <div className="motorista-title-row">
-                  <div>
-                    <p className="motorista-eyebrow">Painel</p>
-                    <h1>Resultado do período</h1>
-                    <p className="motorista-muted">
-                      Saldo = ganhos registrados − gastos registrados. Custos
-                      ainda não lançados ficam fora do cálculo.
-                    </p>
-                  </div>
-                  <div className="motorista-actions motorista-quick-actions">
+                <div>
+                  <p className="motorista-eyebrow">No seu ritmo</p>
+                  <h1>Início</h1>
+                </div>
+                <div className="motorista-card motorista-form">
+                  <h2>Registrar</h2>
+                  <p className="motorista-muted">
+                    Durante o trabalho, registre gastos. No fim, feche o dia com
+                    os ganhos dos aplicativos.
+                  </p>
+                  <div className="motorista-actions motorista-register-actions">
                     <button
                       className="motorista-primary"
-                      onClick={() => {
-                        newGain();
-                        setTab("ganhos");
-                      }}
-                    >
-                      Registrar ganho
-                    </button>
-                    <button
-                      className="motorista-secondary"
-                      onClick={() => {
-                        newExpense();
-                        setTab("gastos");
-                      }}
+                      onClick={() => newExpense()}
                     >
                       Registrar gasto
                     </button>
+                    <button
+                      className="motorista-secondary"
+                      onClick={() => newExpense(today, true)}
+                    >
+                      Abastecer
+                    </button>
+                    <button
+                      className="motorista-secondary"
+                      onClick={() => openDay()}
+                    >
+                      Fechar dia
+                    </button>
                   </div>
                 </div>
-                <PeriodFilter
-                  selection={summaryPeriod}
-                  onChange={setSummaryPeriod}
-                />
-                <div className="motorista-overview">
-                  <div className="motorista-card motorista-overview-card">
-                    <span>Meta</span>
-                    <div className="motorista-goal-value">
-                      <strong
-                        className={
-                          expected === null
-                            ? ""
-                            : summary.balance >= expected
-                              ? "met"
-                              : "behind"
-                        }
-                      >
-                        {money(summary.balance)}
-                      </strong>
-                      <span>/ {expected === null ? "—" : money(expected)}</span>
-                    </div>
-                    {periodValid && expected === null && (
-                      <small>Defina a meta de cada mês deste período.</small>
-                    )}
-                  </div>
-                  <Metric label="Saldo" value={money(summary.balance)} />
-                  <Metric
-                    label="Falta"
-                    value={missing === null ? "—" : money(missing)}
-                  />
-                  <div className="motorista-card motorista-overview-card">
-                    <span>% da meta do mês</span>
-                    <strong>
-                      {monthlyPercent === null
-                        ? "—"
-                        : `${decimal(monthlyPercent, 1)}%`}
-                    </strong>
-                    {monthlyPercent !== null && (
-                      <div
-                        className="motorista-progress"
-                        role="progressbar"
-                        aria-label="Progresso da meta mensal"
-                        aria-valuenow={Math.max(
-                          0,
-                          Math.min(100, Math.round(monthlyPercent)),
-                        )}
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                      >
-                        <span
-                          style={{
-                            width: `${Math.max(0, Math.min(100, monthlyPercent))}%`,
-                          }}
+                <div className="motorista-card motorista-form">
+                  <h2>Última jornada</h2>
+                  {lastDay ? (
+                    <>
+                      <p>
+                        {dateLabel(lastDay.date)} ·{" "}
+                        <strong>{dayStatus(lastDay)}</strong>
+                      </p>
+                      <div className="motorista-stats">
+                        <Metric
+                          label="Ganhos registrados"
+                          value={money(income(lastDay))}
+                        />
+                        <Metric
+                          label="Gastos na data"
+                          value={money(
+                            expenses
+                              .filter((e) => e.date === lastDay.date)
+                              .reduce((s, e) => s + e.cents, 0),
+                          )}
+                        />
+                        <Metric
+                          label="Saldo dos lançamentos"
+                          value={money(
+                            income(lastDay) -
+                              expenses
+                                .filter((e) => e.date === lastDay.date)
+                                .reduce((s, e) => s + e.cents, 0),
+                          )}
                         />
                       </div>
-                    )}
-                  </div>
-                </div>
-                <div className="motorista-card">
-                  <h2>Origem de ganhos</h2>
-                  <div className="motorista-origin-list">
-                    {[
-                      { label: "Uber", cents: summary.uber, kind: "uber" },
-                      {
-                        label: "99",
-                        cents: summary.ninetyNine,
-                        kind: "ninety-nine",
-                      },
-                      { label: "Outros", cents: summary.other, kind: "other" },
-                    ].map((origin) => {
-                      const percent =
-                        summary.gains > 0
-                          ? (origin.cents / summary.gains) * 100
-                          : 0;
-                      return (
-                        <div className="motorista-origin" key={origin.label}>
-                          <div className="motorista-origin-label">
-                            <strong>{origin.label}</strong>
-                            <span>
-                              {money(origin.cents)} ({decimal(percent, 1)}%)
-                            </span>
-                          </div>
-                          <div
-                            className="motorista-origin-track"
-                            role="progressbar"
-                            aria-label={`Participação de ${origin.label} nos ganhos`}
-                            aria-valuenow={Math.round(percent)}
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                          >
-                            <span
-                              className={origin.kind}
-                              style={{ width: `${percent}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="motorista-card">
-                  <h2>Origem dos gastos</h2>
-                  {expenseByCategory.length === 0 ? (
-                    <p className="motorista-muted">
-                      {periodValid
-                        ? "Nenhum gasto neste período."
-                        : "Selecione um período válido."}
-                    </p>
+                      <p className="motorista-muted">
+                        Horas:{" "}
+                        {hasField(lastDay, "minutes")
+                          ? decimal(lastDay.minutes / 60, 2) + " h"
+                          : "não informadas"}{" "}
+                        · KM:{" "}
+                        {hasField(lastDay, "km")
+                          ? decimal(lastDay.km, 1)
+                          : "não informados"}
+                        . Ganhos são os totais registrados manualmente.
+                      </p>
+                      <div className="motorista-actions">
+                        <button
+                          className="motorista-secondary"
+                          onClick={() => openDay(lastDay.date)}
+                        >
+                          Completar ou corrigir
+                        </button>
+                        <button
+                          className="motorista-text-button"
+                          onClick={() => reportFor(lastDay.date)}
+                        >
+                          Detalhar jornada
+                        </button>
+                      </div>
+                    </>
                   ) : (
-                    <div className="motorista-origin-list">
-                      {expenseByCategory.map((category) => {
-                        const percent =
-                          summary.costs > 0
-                            ? (category.cents / summary.costs) * 100
-                            : 0;
-                        return (
-                          <div className="motorista-origin" key={category.id}>
-                            <div className="motorista-origin-label">
-                              <strong>{category.name}</strong>
-                              <span>
-                                {money(category.cents)} ({decimal(percent, 1)}%)
-                              </span>
-                            </div>
-                            <div
-                              className="motorista-origin-track"
-                              role="progressbar"
-                              aria-label={`Participação de ${category.name} nos gastos`}
-                              aria-valuenow={Math.round(percent)}
-                              aria-valuemin={0}
-                              aria-valuemax={100}
-                            >
-                              <span
-                                className="expense"
-                                style={{ width: `${percent}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <p className="motorista-muted">
+                      Nenhuma jornada registrada. Um gasto não fecha o dia;
+                      ausência de registro não significa folga.
+                    </p>
                   )}
                 </div>
-                <div className="motorista-card">
-                  <h2>Estatísticas</h2>
-                  <div className="motorista-stats">
-                    <Metric
-                      label="Horas trabalhadas"
-                      value={`${decimal(summary.minutes / 60, 1)} h`}
-                    />
-                    <Metric
-                      label="Ganho por hora (média)"
-                      value={ratio(summary.gains * 60, summary.minutes)}
-                    />
-                    <Metric
-                      label="KM rodados"
-                      value={`${decimal(summary.km, 1)} km`}
-                    />
-                    <Metric
-                      label="Ganho por KM (média)"
-                      value={ratio(summary.gains, summary.km)}
-                    />
-                    <Metric
-                      label="Consumo médio"
-                      value={
-                        summary.consumption === null
-                          ? "—"
-                          : `${decimal(summary.consumption, 2)} km/L`
-                      }
-                    />
-                  </div>
-                </div>
+                <PlanningCard
+                  plan={currentPlan}
+                  onSettings={() => setTab("definicoes")}
+                  onReports={() => {
+                    setReportsPeriod({
+                      ...initialPeriod(),
+                      filter: "month",
+                      month: today.slice(0, 7),
+                    });
+                    setTab("relatorios");
+                  }}
+                />
               </section>
             )}
-
             {tab === "ganhos" && (
               <section className="motorista-section">
                 <div className="motorista-title-row">
                   <div>
-                    <p className="motorista-eyebrow">Entradas</p>
-                    <h1>Ganhos</h1>
-                    <p className="motorista-muted">
-                      Ganhos e dados de trabalho organizados por dia.
-                    </p>
+                    <p className="motorista-eyebrow">Entradas e jornada</p>
+                    <h1>Ganhos e fechamento</h1>
                   </div>
                   <div className="motorista-actions motorista-quick-actions">
                     <button
                       className="motorista-primary"
+                      onClick={() => openDay()}
+                    >
+                      Fechar dia
+                    </button>
+                    <button
+                      className="motorista-secondary"
                       onClick={() => newGain()}
                     >
                       Registrar ganho
                     </button>
-                    <button
-                      className="motorista-secondary"
-                      onClick={() => editDay(localDate())}
-                    >
-                      Registrar dados do dia
-                    </button>
                   </div>
                 </div>
-                <div className="motorista-list-controls">
-                  <div className="motorista-card motorista-period-total">
-                    <span>Total de ganhos no período</span>
-                    <strong>{gainsPeriodValid ? money(gainsTotal) : "—"}</strong>
-                  </div>
-                  <PeriodFilter
-                    selection={gainsPeriod}
-                    onChange={setGainsPeriod}
-                  />
-                </div>
-                {registeredDays.length === 0 ? (
-                  <div className="motorista-card">
-                    <p className="motorista-muted">
-                      {gainsPeriodValid
-                        ? "Nenhum ganho ou dado de dia neste período."
-                        : "Selecione um período válido."}
-                    </p>
-                  </div>
+                <PeriodFilter
+                  selection={gainsPeriod}
+                  onChange={setGainsPeriod}
+                />
+                <Metric
+                  label="Ganhos registrados no período"
+                  value={money(totals(listedDays, []).gains)}
+                />
+                {!validBounds(gainsBounds) ? (
+                  <p className="motorista-alert">
+                    Selecione um período válido.
+                  </p>
+                ) : !listedDays.length ? (
+                  <p className="motorista-card">
+                    Nenhum dia neste período. Pode abrir uma data retroativa em
+                    Fechar dia.
+                  </p>
                 ) : (
-                  registeredDays.map((day) => (
+                  listedDays.map((day) => (
                     <div
-                      className="motorista-card motorista-day-group"
                       key={day.date}
+                      className="motorista-card motorista-day-group"
                     >
                       <div className="motorista-day-heading">
-                        <div className="motorista-day-heading-info">
+                        <div>
                           <h2>{dateLabel(day.date)}</h2>
-                          <span>
-                            Total do dia:{" "}
-                            <strong>
-                              {money(
-                                day.uberCents +
-                                  day.ninetyNineCents +
-                                  day.otherCents,
-                              )}
-                            </strong>
-                          </span>
+                          <p>
+                            {dayStatus(day)} · {money(income(day))}
+                          </p>
                         </div>
                         <button
                           className="motorista-secondary"
-                          onClick={() => newGain(day.date)}
+                          onClick={() => openDay(day.date)}
                         >
-                          Registrar ganho
+                          Abrir dia
                         </button>
                       </div>
                       {legacyGains([day]).map((gain) => (
                         <div className="motorista-day-row" key={gain.id}>
                           <span className="motorista-day-value">
                             <strong>
-                              {gain.source === "ninetyNine"
-                                ? "99"
-                                : gain.source === "uber"
-                                  ? "Uber"
+                              {gain.source === "uber"
+                                ? "Uber"
+                                : gain.source === "ninetyNine"
+                                  ? "99"
                                   : "Outros"}
                             </strong>
                             <span>{money(gain.cents)}</span>
@@ -1131,76 +1056,48 @@ export default function MotoristaApp() {
                           <div className="motorista-actions motorista-icon-actions">
                             <button
                               className="motorista-icon-button"
-                              type="button"
                               aria-label={
                                 "Editar ganho de " +
-                                (gain.source === "ninetyNine"
-                                  ? "99"
-                                  : gain.source === "uber"
-                                    ? "Uber"
-                                    : "Outros") +
+                                gain.source +
                                 " de " +
-                                dateLabel(day.date)
+                                day.date
                               }
-                              title="Editar ganho"
                               onClick={() => editGain(gain)}
                             >
                               <EditIcon />
                             </button>
                             <button
                               className="motorista-icon-button motorista-danger"
-                              type="button"
                               aria-label={
                                 "Excluir ganho de " +
-                                (gain.source === "ninetyNine"
-                                  ? "99"
-                                  : gain.source === "uber"
-                                    ? "Uber"
-                                    : "Outros") +
+                                gain.source +
                                 " de " +
-                                dateLabel(day.date)
+                                day.date
                               }
-                              title="Excluir ganho"
-                              onClick={() => removeGain(gain)}
                               disabled={saving}
+                              onClick={() => removeGain(gain)}
                             >
                               <DeleteIcon />
                             </button>
                           </div>
                         </div>
                       ))}
-                      <div className="motorista-day-row motorista-day-stats">
-                        <div>
-                          <strong>Dados do dia</strong>
-                          <span>
-                            Horas trabalhadas:{" "}
-                            {day.minutes
-                              ? decimal(day.minutes / 60, 2) + " h"
-                              : "—"}
-                          </span>
-                          <span>
-                            KM rodados:{" "}
-                            {day.km ? decimal(day.km, 1) + " km" : "—"}
-                          </span>
-                          <span>
-                            Consumo:{" "}
-                            {day.consumption
-                              ? decimal(day.consumption, 2) + " km/L"
-                              : "—"}
-                          </span>
-                        </div>
-                        <button
-                          className="motorista-icon-button"
-                          type="button"
-                          aria-label={
-                            "Editar dados do dia " + dateLabel(day.date)
-                          }
-                          title="Editar dados do dia"
-                          onClick={() => editDay(day.date)}
-                        >
-                          <EditIcon />
-                        </button>
-                      </div>
+                      <p className="motorista-muted">
+                        {day.minutes > 0
+                          ? decimal(day.minutes / 60, 2) + " h"
+                          : "Horas não informadas"}{" "}
+                        ·{" "}
+                        {day.km > 0
+                          ? decimal(day.km) + " km"
+                          : "KM não informados"}
+                        {day.note ? " · " + day.note : ""}
+                      </p>
+                      <button
+                        className="motorista-text-button"
+                        onClick={() => reportFor(day.date)}
+                      >
+                        Ver relatório do dia
+                      </button>
                     </div>
                   ))
                 )}
@@ -1213,52 +1110,47 @@ export default function MotoristaApp() {
                     <p className="motorista-eyebrow">Despesas</p>
                     <h1>Gastos</h1>
                     <p className="motorista-muted">
-                      Gastos organizados por dia, inclusive sem jornada
-                      registrada.
+                      Todos os pagamentos, inclusive pessoais e dias sem
+                      jornada.
                     </p>
                   </div>
-                  <div className="motorista-actions motorista-quick-actions motorista-single-action">
+                  <div className="motorista-actions">
                     <button
                       className="motorista-primary"
                       onClick={() => newExpense()}
                     >
                       Registrar gasto
                     </button>
+                    <button
+                      className="motorista-secondary"
+                      onClick={() => newExpense(today, true)}
+                    >
+                      Abastecer
+                    </button>
                   </div>
                 </div>
-                <div className="motorista-list-controls">
-                  <div className="motorista-card motorista-period-total">
-                    <span>Total de gastos no período</span>
-                    <strong>
-                      {expensesPeriodValid ? money(expensesTotal) : "—"}
-                    </strong>
-                  </div>
-                  <PeriodFilter
-                    selection={expensesPeriod}
-                    onChange={setExpensesPeriod}
-                  />
-                </div>
-                {expenseDays.length === 0 ? (
-                  <div className="motorista-card">
-                    <p className="motorista-muted">
-                      {expensesPeriodValid
-                        ? "Nenhum gasto neste período."
-                        : "Selecione um período válido."}
-                    </p>
-                  </div>
+                <PeriodFilter
+                  selection={expensesPeriod}
+                  onChange={setExpensesPeriod}
+                />
+                <Metric
+                  label="Total de gastos no período"
+                  value={money(listedExpenses.reduce((s, e) => s + e.cents, 0))}
+                />
+                {!validBounds(expenseBounds) ? (
+                  <p className="motorista-alert">
+                    Selecione um período válido.
+                  </p>
+                ) : !expenseDates.length ? (
+                  <p className="motorista-card">Nenhum gasto neste período.</p>
                 ) : (
-                  expenseDays.map(({ date, items, total }) => (
+                  expenseDates.map((date) => (
                     <div
                       className="motorista-card motorista-day-group"
                       key={date}
                     >
                       <div className="motorista-day-heading">
-                        <div className="motorista-day-heading-info">
-                          <h2>{dateLabel(date)}</h2>
-                          <span>
-                            Total do dia: <strong>{money(total)}</strong>
-                          </span>
-                        </div>
+                        <h2>{dateLabel(date)}</h2>
                         <button
                           className="motorista-secondary"
                           onClick={() => newExpense(date)}
@@ -1266,277 +1158,208 @@ export default function MotoristaApp() {
                           Registrar gasto
                         </button>
                       </div>
-                      {items.map((item) => {
-                        const category =
-                          categories.find(
-                            (entry) => entry.id === item.categoryId,
-                          )?.name ?? item.categoryId;
-                        return (
+                      {listedExpenses
+                        .filter((e) => e.date === date)
+                        .map((expense) => (
                           <div
                             className="motorista-day-row motorista-expense-day-row"
-                            key={item.id}
+                            key={expense.id}
                           >
                             <div className="motorista-expense-details">
-                              <strong>{category}</strong>
-                              {item.note && <small>{item.note}</small>}
+                              <strong>
+                                {categories.find(
+                                  (c) => c.id === expense.categoryId,
+                                )?.name ?? expense.categoryId}
+                              </strong>
+                              {expense.note && <small>{expense.note}</small>}
+                              {fuelExpense(expense, categories) && (
+                                <small>
+                                  {expense.fuel?.incomplete !== false
+                                    ? "Abastecimento incompleto · completar detalhes"
+                                    : `${expense.fuel?.fuelType} · ${expense.fuel?.volume} ${expense.fuel?.unit === "m3" ? "m³" : "L"}`}
+                                </small>
+                              )}
+                              {expense.plannedExpenseId && (
+                                <small>Pagamento vinculado à previsão</small>
+                              )}
                             </div>
-                            <strong>{money(item.cents)}</strong>
+                            <strong>{money(expense.cents)}</strong>
                             <div className="motorista-actions motorista-icon-actions">
                               <button
                                 className="motorista-icon-button"
-                                type="button"
-                                aria-label={`Editar gasto de ${category} de ${dateLabel(date)}`}
-                                title="Editar gasto"
-                                onClick={() => editExpense(item)}
+                                aria-label={"Editar gasto " + expense.id}
+                                onClick={() => editExpense(expense)}
                               >
                                 <EditIcon />
                               </button>
                               <button
                                 className="motorista-icon-button motorista-danger"
-                                type="button"
-                                aria-label={`Excluir gasto de ${category} de ${dateLabel(date)}`}
-                                title="Excluir gasto"
-                                onClick={() => removeExpense(item)}
+                                aria-label={"Excluir gasto " + expense.id}
                                 disabled={saving}
+                                onClick={() => removeExpense(expense)}
                               >
                                 <DeleteIcon />
                               </button>
                             </div>
                           </div>
-                        );
-                      })}
+                        ))}
                     </div>
                   ))
                 )}
               </section>
             )}
-
-            {tab === "relatorios" && (
-              <section className="motorista-section" aria-label="Relatórios" />
-            )}
-
+            {tab === "relatorios" &&
+              (validBounds(reportBounds) ? (
+                <MotoristaReports
+                  days={days}
+                  expenses={expenses}
+                  categories={categories}
+                  goals={goals}
+                  plans={plans}
+                  profiles={profiles}
+                  from={reportBounds.from}
+                  to={reportBounds.to}
+                  filter={reportsPeriod.filter}
+                  controls={
+                    <PeriodFilter
+                      selection={reportsPeriod}
+                      onChange={setReportsPeriod}
+                    />
+                  }
+                  onDay={openDay}
+                  onSettings={() => setTab("definicoes")}
+                />
+              ) : (
+                <section className="motorista-section">
+                  <h1>Relatórios</h1>
+                  <PeriodFilter
+                    selection={reportsPeriod}
+                    onChange={setReportsPeriod}
+                  />
+                  <p className="motorista-alert">
+                    Selecione um período válido.
+                  </p>
+                </section>
+              ))}
             {tab === "definicoes" && (
-              <section className="motorista-section">
-                <div className="motorista-title-row">
-                  <div>
-                    <p className="motorista-eyebrow">Preferências</p>
-                    <h1>Definições</h1>
-                    <p className="motorista-muted">
-                      Defina a meta mensal de saldo e organize as categorias dos
-                      gastos.
-                    </p>
-                  </div>
-                </div>
-                <div className="motorista-grid motorista-settings-grid">
-                  <form
-                    className="motorista-card motorista-form"
-                    onSubmit={saveGoal}
-                  >
-                    <h2>Qual sua meta mensal?</h2>
-                    <label>
-                      Meta mensal de saldo (R$)
-                      <MoneyInput
-                        value={goalInput}
-                        onChange={setGoalDraft}
-                        required
-                      />
-                      <small>
-                        Vale deste mês em diante, até você alterar o valor.
-                      </small>
-                    </label>
-                    <button className="motorista-primary" disabled={saving}>
-                      {saving ? "Salvando…" : "Salvar meta"}
-                    </button>
-                  </form>
-                  <div className="motorista-card">
-                    <h2>Categorias</h2>
-                    <p className="motorista-muted">
-                      Renomear mantém a identificação dos gastos antigos.
-                    </p>
-                    <div className="motorista-category-list">
-                      {categories.map((item) => (
-                        <div key={item.id} className="motorista-category-row">
-                          {categoryEdit === item.id ? (
-                            <>
-                              <input
-                                aria-label={`Nome da categoria ${item.name}`}
-                                value={categoryName}
-                                onChange={(event) =>
-                                  setCategoryName(event.target.value)
-                                }
-                                maxLength={80}
-                              />
-                              <button
-                                onClick={() =>
-                                  saveCategory(item.id, categoryName)
-                                }
-                                disabled={saving}
-                              >
-                                Salvar
-                              </button>
-                              <button onClick={() => setCategoryEdit(null)}>
-                                Cancelar
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <span>{item.name}</span>
-                              <button
-                                className="motorista-icon-button"
-                                aria-label={`Editar categoria ${item.name}`}
-                                title="Editar categoria"
-                                onClick={() => {
-                                  setCategoryEdit(item.id);
-                                  setCategoryName(item.name);
-                                }}
-                              >
-                                <EditIcon />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="motorista-actions">
-                      <input
-                        aria-label="Nova categoria"
-                        placeholder="Nova categoria"
-                        value={newCategory}
-                        onChange={(event) => setNewCategory(event.target.value)}
-                        maxLength={80}
-                      />
-                      <button
-                        className="motorista-secondary"
-                        onClick={() => saveCategory(null, newCategory)}
-                        disabled={saving}
-                      >
-                        Adicionar
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </section>
+              <MotoristaSettings
+                days={days}
+                expenses={expenses}
+                categories={categories}
+                goals={goals}
+                plans={plans}
+                profiles={profiles}
+                saving={saving}
+                save={saveDocument}
+              />
             )}
-
             {tab === "backup" && (
               <section className="motorista-section">
-                <div className="motorista-title-row">
-                  <div>
-                    <p className="motorista-eyebrow">Portabilidade</p>
-                    <h1>Exportar e importar</h1>
-                    <p className="motorista-muted">
-                      Guarde uma cópia dos registros, categorias e metas. A
-                      importação usa identificadores estáveis para evitar
-                      duplicações.
-                    </p>
-                  </div>
-                </div>
+                <h1>Exportar e importar</h1>
                 <div className="motorista-grid">
-                  <div className="motorista-card">
-                    <h2>Exportar</h2>
-                    <p className="motorista-muted">
-                      JSON para restauração completa ou CSV para análise em
-                      planilha.
+                  <div className="motorista-card motorista-form">
+                    <h2>Exportar todo o histórico</h2>
+                    <p>
+                      Backup v4 inclui jornadas, pagamentos, categorias, metas,
+                      calendário, compromissos, vínculos e premissas históricas.
+                      Campos desconhecidos em documentos JSON são preservados.
                     </p>
-                    <div className="motorista-actions">
-                      <button
-                        className="motorista-primary"
-                        onClick={downloadJson}
-                      >
-                        Baixar JSON
-                      </button>
-                      <button
-                        className="motorista-secondary"
-                        onClick={() =>
-                          fileDownload(
-                            exportCsv(days, expenses, categories),
-                            `motorista-lancamentos-${today}.csv`,
-                            "text/csv;charset=utf-8",
-                          )
+                    <button
+                      className="motorista-primary"
+                      onClick={() => {
+                        try {
+                          downloadJson();
+                        } catch (error) {
+                          setNotice(
+                            "Não foi possível exportar: " + errorMessage(error),
+                          );
                         }
-                      >
-                        Baixar CSV
-                      </button>
-                    </div>
+                      }}
+                    >
+                      Baixar JSON
+                    </button>
+                    <button
+                      className="motorista-secondary"
+                      onClick={() =>
+                        fileDownload(
+                          exportCsv(
+                            days,
+                            expenses,
+                            categories,
+                            days
+                              .map((d) =>
+                                estimateDay(d, expenses, categories, profiles),
+                              )
+                              .filter((e) => e !== null),
+                          ),
+                          "motorista-lancamentos-" + today + ".csv",
+                          "text/csv;charset=utf-8",
+                        )
+                      }
+                    >
+                      Baixar CSV
+                    </button>
                   </div>
                   <div className="motorista-card motorista-form">
-                    <h2>Importar JSON</h2>
+                    <h2>Importar backup JSON</h2>
                     <label>
                       Selecione um backup
                       <input
                         type="file"
                         accept=".json,application/json"
-                        onChange={(event) =>
-                          chooseBackup(event.target.files?.[0])
-                        }
+                        onChange={(e) => chooseBackup(e.target.files?.[0])}
                       />
                     </label>
+                    {importError && (
+                      <p className="motorista-alert error" role="alert">
+                        {importError}
+                      </p>
+                    )}
                     {backup && (
                       <>
                         <p>
-                          Prévia: <strong>{backup.days.length}</strong> dados de
-                          dia,{" "}
-                          <strong>{legacyGains(backup.days).length}</strong>{" "}
-                          ganhos, <strong>{backup.expenses.length}</strong>{" "}
-                          gastos, <strong>{backup.categories.length}</strong>{" "}
-                          categorias e <strong>{backup.goals.length}</strong>{" "}
-                          metas.
+                          Prévia validada ·{" "}
+                          {new Date(backup.exportedAt).toLocaleString("pt-BR")}
                         </p>
-                        <p className="motorista-muted">
-                          Data da cópia:{" "}
-                          {new Date(backup.exportedAt).toLocaleString("pt-BR")}.
-                          Coincidências por ID:{" "}
-                          {
-                            backup.days.filter((item) =>
-                              days.some(
-                                (current) => current.date === item.date,
-                              ),
-                            ).length
-                          }{" "}
-                          dados de dia,{" "}
-                          {
-                            backup.expenses.filter((item) =>
-                              expenses.some(
-                                (current) => current.id === item.id,
-                              ),
-                            ).length
-                          }{" "}
-                          gastos,{" "}
-                          {
-                            backup.categories.filter((item) =>
-                              savedCategories.some(
-                                (current) => current.id === item.id,
-                              ),
-                            ).length
-                          }{" "}
-                          categorias e{" "}
-                          {
-                            backup.goals.filter((item) =>
-                              goals.some(
-                                (current) => current.month === item.month,
-                              ),
-                            ).length
-                          }{" "}
-                          metas.
-                        </p>
+                        {Object.entries(currentLists).map(([name, current]) => (
+                          <p key={name}>
+                            {name}:{" "}
+                            {(backup[name as keyof Backup] as object[]).length}{" "}
+                            itens ·{" "}
+                            {
+                              (backup[name as keyof Backup] as object[]).filter(
+                                (item) =>
+                                  current.some(
+                                    (c) =>
+                                      itemId(name, c) === itemId(name, item),
+                                  ),
+                              ).length
+                            }{" "}
+                            IDs existentes
+                          </p>
+                        ))}
                         <label>
-                          Como tratar itens já existentes
+                          Como tratar IDs existentes
                           <select
                             value={importMode}
-                            onChange={(event) =>
-                              setImportMode(
-                                event.target.value as "new" | "update",
-                              )
+                            onChange={(e) =>
+                              setImportMode(e.target.value as typeof importMode)
                             }
                           >
                             <option value="new">
-                              Preservar existentes (importar só novos)
+                              Preservar existentes (somente novos)
                             </option>
                             <option value="update">
-                              Atualizar itens com o mesmo ID
+                              Atualizar itens de mesmo ID
                             </option>
                           </select>
                         </label>
+                        <p>
+                          {importEntries.length} itens serão gravados. Nenhum
+                          item ausente será apagado. Lotes de até 150 documentos
+                          são atômicos; uma falha posterior preserva os lotes
+                          anteriores e informa o ponto de parada.
+                        </p>
                         <button
                           className="motorista-primary"
                           onClick={importBackup}
@@ -1557,49 +1380,74 @@ export default function MotoristaApp() {
             ref={modalRef}
             className="motorista-dialog"
             aria-labelledby="motorista-dialog-title"
-            onCancel={() => setModal(null)}
+            onCancel={(event) => {
+              if (saving) event.preventDefault();
+              else setModal(null);
+            }}
           >
             <div className="motorista-dialog-header">
               <h2 id="motorista-dialog-title">
-                {modal === "gain"
-                  ? gainForm.id
-                    ? "Editar ganho"
-                    : "Registrar ganho"
-                  : modal === "expense"
-                    ? expenseForm.id
+                {modal === "day"
+                  ? "Fechar dia"
+                  : modal === "gain"
+                    ? gainForm.id
+                      ? "Editar ganho"
+                      : "Registrar ganho"
+                    : expenseDraft.id
                       ? "Editar gasto"
-                      : "Registrar gasto"
-                  : days.some((day) => day.date === dayDate)
-                    ? "Editar dados do dia"
-                    : "Registrar dados do dia"}
+                      : expenseDraft.kind === "fuel"
+                        ? "Abastecer"
+                        : "Registrar gasto"}
               </h2>
               <button
                 type="button"
                 className="motorista-icon-button"
                 aria-label="Fechar"
                 onClick={() => setModal(null)}
+                disabled={saving}
               >
                 ×
               </button>
             </div>
             {notice &&
-              (notice.startsWith("Não") ||
-                notice.startsWith("Revise") ||
-                notice.startsWith("Informe")) && (
-                <p role="alert" className="motorista-alert error">
+              (notice.startsWith("Não") || notice.startsWith("Informe")) && (
+                <p className="motorista-alert error" role="alert">
                   {notice}
                 </p>
               )}
-            {modal === "gain" ? (
+            {modal === "day" ? (
+              <DayEditor
+                key={dayDate}
+                date={dayDate}
+                days={days}
+                expenses={expenses}
+                saving={saving}
+                onSave={(day, previous) =>
+                  saveDocument("days", day.date, day, previous)
+                }
+                onCancel={() => setModal(null)}
+              />
+            ) : modal === "expense" ? (
+              <ExpenseEditor
+                key={expenseDraft.id ?? "new"}
+                initial={expenseDraft}
+                expenses={expenses}
+                categories={categories}
+                plans={plans}
+                saving={saving}
+                onSave={saveExpense}
+                onCancel={() => setModal(null)}
+              />
+            ) : (
               <form className="motorista-form" onSubmit={saveGain}>
                 <label>
                   Data
-                  <PickerInput
+                  <input
                     type="date"
                     value={gainForm.date}
                     required
-                    onChange={(event) =>
-                      setGainForm({ ...gainForm, date: event.target.value })
+                    onChange={(e) =>
+                      setGainForm({ ...gainForm, date: e.target.value })
                     }
                   />
                 </label>
@@ -1607,10 +1455,10 @@ export default function MotoristaApp() {
                   Origem
                   <select
                     value={gainForm.source}
-                    onChange={(event) =>
+                    onChange={(e) =>
                       setGainForm({
                         ...gainForm,
-                        source: event.target.value as Gain["source"],
+                        source: e.target.value as Gain["source"],
                       })
                     }
                   >
@@ -1621,145 +1469,27 @@ export default function MotoristaApp() {
                 </label>
                 <label>
                   Valor (R$)
-                  <MoneyInput
+                  <MoneyField
                     value={gainValue}
                     onChange={setGainValue}
                     required
                   />
                 </label>
-                <div className="motorista-actions motorista-dialog-actions">
+                <p className="motorista-muted">
+                  Um total por origem e data. Use Fechar dia para registrar os
+                  aplicativos e a jornada juntos.
+                </p>
+                <div className="motorista-actions">
                   <button
                     type="button"
                     className="motorista-secondary"
                     onClick={() => setModal(null)}
+                    disabled={saving}
                   >
                     Cancelar
                   </button>
                   <button className="motorista-primary" disabled={saving}>
-                    {saving ? "Salvando…" : "Salvar ganho"}
-                  </button>
-                </div>
-              </form>
-            ) : modal === "expense" ? (
-              <form className="motorista-form" onSubmit={saveExpense}>
-                <label>
-                  Data
-                  <PickerInput
-                    type="date"
-                    value={expenseForm.date}
-                    onChange={(event) =>
-                      setExpenseForm({ ...expenseForm, date: event.target.value })
-                    }
-                    required
-                  />
-                </label>
-                <label>
-                  Categoria
-                  <select
-                    value={expenseForm.categoryId}
-                    onChange={(event) =>
-                      setExpenseForm({
-                        ...expenseForm,
-                        categoryId: event.target.value,
-                      })
-                    }
-                  >
-                    {categories.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Valor (R$)
-                  <MoneyInput
-                    value={expenseForm.value}
-                    onChange={(value) => setExpenseForm({ ...expenseForm, value })}
-                    required
-                  />
-                </label>
-                <label>
-                  Observação (opcional)
-                  <textarea
-                    maxLength={500}
-                    value={expenseForm.note}
-                    onChange={(event) =>
-                      setExpenseForm({ ...expenseForm, note: event.target.value })
-                    }
-                    rows={3}
-                  />
-                </label>
-                <div className="motorista-actions motorista-dialog-actions">
-                  <button
-                    type="button"
-                    className="motorista-secondary"
-                    onClick={() => setModal(null)}
-                  >
-                    Cancelar
-                  </button>
-                  <button className="motorista-primary" disabled={saving}>
-                    {saving ? "Salvando…" : "Salvar gasto"}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <form className="motorista-form" onSubmit={saveDay}>
-                <label>
-                  Data
-                  <PickerInput
-                    type="date"
-                    value={dayDate}
-                    onChange={(event) => setDayDate(event.target.value)}
-                    required
-                  />
-                </label>
-                <label>
-                  Horas trabalhadas
-                  <input
-                    inputMode="decimal"
-                    placeholder="Ex.: 8,5"
-                    value={dayForm.hours}
-                    onChange={(event) =>
-                      setDayForm({ ...dayForm, hours: event.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  KM rodados
-                  <input
-                    inputMode="decimal"
-                    placeholder="Ex.: 145,5"
-                    value={dayForm.km}
-                    onChange={(event) =>
-                      setDayForm({ ...dayForm, km: event.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  Consumo (km/L)
-                  <input
-                    inputMode="decimal"
-                    placeholder="Ex.: 12,5"
-                    value={dayForm.consumption}
-                    onChange={(event) =>
-                      setDayForm({
-                        ...dayForm,
-                        consumption: event.target.value,
-                      })
-                    }
-                  />
-                </label>
-                <div className="motorista-actions motorista-dialog-actions">
-                  <button
-                    type="button"
-                    className="motorista-secondary"
-                    onClick={() => setModal(null)}
-                  >
-                    Cancelar
-                  </button>
-                  <button className="motorista-primary" disabled={saving}>
-                    {saving ? "Salvando…" : "Salvar dados do dia"}
+                    Salvar ganho
                   </button>
                 </div>
               </form>
@@ -1768,36 +1498,6 @@ export default function MotoristaApp() {
         )}
       </div>
     </main>
-  );
-}
-
-function MoneyInput({
-  value,
-  onChange,
-  required = false,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  required?: boolean;
-}) {
-  return (
-    <input
-      type="text"
-      className="motorista-money-input"
-      inputMode="numeric"
-      autoComplete="off"
-      placeholder="R$ 0,00"
-      value={value}
-      onChange={(event) => onChange(maskMoney(event.target.value))}
-      onFocus={(event) => event.target.select()}
-      onPaste={(event) => {
-        event.preventDefault();
-        const cents = parseCents(event.clipboardData.getData("text"));
-        if (Number.isSafeInteger(cents) && cents >= 0)
-          onChange(cents ? money(cents) : "");
-      }}
-      required={required}
-    />
   );
 }
 
@@ -1931,7 +1631,12 @@ function AccountMenu({
   const [open, setOpen] = useState(false);
   const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
   const name = user.displayName || user.email || "Minha conta";
-  const initials = name.split(/\s+/).map((part) => part[0]).slice(0, 2).join("").toUpperCase();
+  const initials = name
+    .split(/\s+/)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 
   return (
     <>
@@ -1976,9 +1681,12 @@ function AccountMenu({
           if (event.target !== event.currentTarget) return;
           const bounds = event.currentTarget.getBoundingClientRect();
           if (
-            event.clientX < bounds.left || event.clientX > bounds.right ||
-            event.clientY < bounds.top || event.clientY > bounds.bottom
-          ) dialogRef.current?.close();
+            event.clientX < bounds.left ||
+            event.clientX > bounds.right ||
+            event.clientY < bounds.top ||
+            event.clientY > bounds.bottom
+          )
+            dialogRef.current?.close();
         }}
       >
         <div className="motorista-account-details">
@@ -2020,27 +1728,57 @@ function AccountMenu({
 
 function TabIcon({ tab }: { tab: Tab }) {
   const paths: Record<Tab, React.ReactNode> = {
-    relatorios: <><path d="M5 3h10l4 4v14H5z" /><path d="M14 3v5h5M8 17v-3M12 17v-6M16 17v-4" /></>,
-    resumo: <><path d="M3 11.5 12 4l9 7.5V20H3v-8.5Z" /><path d="M8 20v-6h8v6" /></>,
-    ganhos: <><path d="M3 17.5 9 11l4 4 8-8" /><path d="M16 7h5v5" /></>,
-    gastos: <><path d="M3 7h18v12H3z" /><path d="M3 10h18M16 15h2" /></>,
-    definicoes: <><path d="M4 7h16M4 17h16" /><circle cx="9" cy="7" r="2" /><circle cx="15" cy="17" r="2" /></>,
-    backup: <><path d="M5 14a7 7 0 1 0 1-6" /><path d="M5 4v4h4M12 8v5l3 2" /></>,
+    relatorios: (
+      <>
+        <path d="M5 3h10l4 4v14H5z" />
+        <path d="M14 3v5h5M8 17v-3M12 17v-6M16 17v-4" />
+      </>
+    ),
+    resumo: (
+      <>
+        <path d="M3 11.5 12 4l9 7.5V20H3v-8.5Z" />
+        <path d="M8 20v-6h8v6" />
+      </>
+    ),
+    ganhos: (
+      <>
+        <path d="M3 17.5 9 11l4 4 8-8" />
+        <path d="M16 7h5v5" />
+      </>
+    ),
+    gastos: (
+      <>
+        <path d="M3 7h18v12H3z" />
+        <path d="M3 10h18M16 15h2" />
+      </>
+    ),
+    definicoes: (
+      <>
+        <path d="M4 7h16M4 17h16" />
+        <circle cx="9" cy="7" r="2" />
+        <circle cx="15" cy="17" r="2" />
+      </>
+    ),
+    backup: (
+      <>
+        <path d="M5 14a7 7 0 1 0 1-6" />
+        <path d="M5 4v4h4M12 8v5l3 2" />
+      </>
+    ),
   };
 
   return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       {paths[tab]}
     </svg>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="motorista-metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
   );
 }
 

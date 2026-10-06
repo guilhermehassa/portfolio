@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  devIndicators:
+    process.env.NEXT_PUBLIC_MOTORISTA_TEST_MODE === "true" ? false : undefined,
+  distDir:
+    process.env.NODE_ENV === "development" &&
+    process.env.NEXT_PUBLIC_MOTORISTA_TEST_MODE === "true"
+      ? ".next-motorista-qa"
+      : ".next",
   reactCompiler: true,
   // Site estatico: `npm run build` gera `out/` com HTML/CSS/JS puros, servidos
   // direto pelo Caddy da VPS. Sem container, sem servidor Node em producao.
