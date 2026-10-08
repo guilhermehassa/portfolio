@@ -12,12 +12,71 @@ O Início deve facilitar os registros e orientar o planejamento do mês. Relató
 
 Execução concluída em **06/10/2026**, após inspeção do código, backup integral, migração aditiva reconciliada e validações. O código permanece local, sem commit, push ou publicação do site. As regras e o enriquecimento autorizado do histórico foram aplicados no Firebase.
 
+## Fluxo de jornada — 07/10/2026
+
+| Trabalho | Situação |
+| --- | --- |
+| Início com iniciar dia, iniciar pausa, encerrar pausa e encerrar dia conforme estado | Concluído localmente |
+| Data/hora atual editável, correções retroativas e duração fixa descontando pausas | Concluído localmente |
+| Correção da data inicial transferindo jornada/ganhos e preservando datas dos gastos | Concluído localmente |
+| Compatibilidade de backup/CSV, importação e preservação de campos históricos | Concluído localmente |
+| Firebase: regras, exclusividade transacional e enriquecimento aditivo dos horários antigos | Concluído e reconciliado |
+
+Decisões confirmadas pelo usuário: apenas uma jornada aberta; ganho rápido sugere a data inicial da jornada aberta; início bloqueado em data com ganhos sem início; pausas possuem somente horários; KM derivam dos odômetros inicial/final; correção da data inicial exige destino sem registro. Horários antigos com duração usam 00:00 + minutos preservados, sem novo identificador de estimativa; sem duração/odômetro não se inventam esses dados.
+
+Verificação local: **46 testes** na execução conjunta dos cálculos/compatibilidade e persistência isolada, lint e checagem de tipos aprovados. Não houve build, QA adicional da interface do Motorista, mudança no servidor de desenvolvimento, Git ou publicação do site.
+
+Firebase concluído pelo responsável pelo backend: regras publicadas e relidas iguais ao conteúdo local, com acesso restrito ao proprietário e **20 simulações** de autorização/exclusividade/fechamento/transferência aprovadas. Foram adicionados horários a **9 jornadas** em operação atômica, com máscara somente no campo `journey` e precondições de versão. Reconciliação recursiva final: **31 de 31 documentos preservados**, zero diferenças nos campos originais e datas de criação, zero divergências nos horários propostos e zero documentos adicionais. Nenhum dado real foi usado para gravação fictícia de teste.
+
+Backup original, proposta, aplicação, releitura e regras estão em `backups/motorista/2026-10-07-jornadas/`; o registro final é `relatorio-final.md`, no mesmo diretório privado. Fluxo concluído, sem pendência documental ou de Firebase.
+
+## Retorno ao Firebase real — 07/10/2026
+
+| Trabalho | Situação |
+| --- | --- |
+| Getters e persistência usam Authentication/Firestore reais em desenvolvimento e produção | Concluído |
+| Remoção do adaptador local, usuário fictício, componente de carga, flags/cache QA e testes exclusivos | Concluída |
+| Remoção dos quatro arquivos privados da preparação de teste, preservando backups reais | Concluída; 20 arquivos reais com hashes intactos |
+| Preservação das funcionalidades e testes do produto, sem importar lançamentos temporários | Concluída |
+| Leitura de dados reais e regras vigentes, sem escritas remotas | Concluída; 31 documentos exatamente preservados |
+| Limpeza somente das duas chaves antigas no navegador | Implementada; executa na recarga do usuário |
+| Documentação de acesso real e retirada das instruções do ambiente temporário | Concluída |
+
+Decisão explícita do usuário após concluir os ajustes: voltar a atuar diretamente no Firebase e excluir o ambiente de teste. `/motorista` agora usa o projeto original `motorista-17946` em desenvolvimento e produção, com login Google do proprietário. Nenhum lançamento temporário é promovido. Horários/pausas, períodos múltiplos, fechamento em quatro etapas, correções e transferência permanecem com os contratos aditivos existentes.
+
+Leitura remota em **07/10/2026 às 15:06:46 (São Paulo)** confirmou **31 documentos** — nove dias, 18 gastos, duas categorias e duas metas — com todos os campos, IDs, datas de criação e atualização exatamente iguais à reconciliação real preservada. Regras publicadas iguais às locais; nenhuma migração, escrita de dados ou publicação de regras necessária. Os backups reais de `2026-10-05-2330` e `2026-10-07-jornadas` foram preservados, com seus 20 arquivos conferidos por hash após excluir a preparação temporária.
+
+Verificação desta retirada, em execuções separadas: **16 testes transacionais do backend** e **cinco casos focados do frontend** aprovados. Checagem de tipos, lint e análise de CSS/JSON aprovados. A suíte ampla não foi reexecutada. Nenhum teste criou/alterou registros reais; não houve QA de tela, build, comando de restart, Git ou publicação do site. A remoção da configuração QA pode produzir recarregamento automático normal do Next, autorizado no escopo de retirada.
+
+Acesso atual: recarregar `http://localhost:3000/motorista` e entrar com a conta Google autorizada, se necessário. A rotina remove somente as duas chaves antigas de teste da origem atual, sem importar seu conteúdo ou limpar autenticação. Não houve acesso nem verificação dessa limpeza no perfil do usuário pelo agente. Backups antigos marcados como teste continuam recusados na importação real.
+
+## Encerramento em quatro etapas — 07/10/2026
+
+| Trabalho | Situação |
+| --- | --- |
+| Data/hora final com valor atual e edição retroativa | Implementado localmente |
+| Revisão, inclusão e remoção de pausas com validação cronológica | Implementado localmente |
+| Dados finais, odômetro final e cálculo dos KM | Implementado localmente |
+| Totais de ganhos preenchidos, sem soma duplicada | Implementado localmente |
+| Gastos e abastecimentos mantidos no cadastro separado, sem etapa Custos no encerramento | Concluído localmente |
+| Navegação preserva rascunho; cancelar antes de concluir não grava | Implementado localmente |
+| Confirmação da jornada e ganhos ao concluir Ganhos, sem novos campos/coleções | Concluído localmente; contrato preservado |
+| Verificação técnica da revisão de quatro etapas e documentação final | Concluídas; 12 casos focados aprovados |
+
+Decisão atual do usuário: remover a etapa **Custos**. O fluxo tem **Encerramento → Pausas → Dados finais → Ganhos**; a terceira etapa mantém o odômetro final, e **Ganhos** passa a ser a última. **Tudo é salvo somente ao concluir Ganhos**. Cancelar, fechar ou sair antes dessa confirmação mantém horários, pausas, ganhos e odômetros no estado anterior. O encerramento não lista nem registra custos; gastos e abastecimentos continuam separados e os registros existentes permanecem intactos.
+
+Iniciar dia, iniciar/encerrar pausa e o editor histórico de correção mantêm o comportamento existente. A confirmação usa a transação atual para jornada, ganhos e marcador de jornada aberta, sem novos gastos. O contrato já aceita essa lista vazia; não foi necessário alterar helper, modelo ou banco. Nenhuma migração ou mudança remota faz parte desse ajuste de UX; o snapshot bruto de origem permanece intacto.
+
+Verificação desta revisão concluída pelo frontend: **12 casos focados aprovados**, em duas execuções — oito novos de avisos/navegação e quatro existentes relevantes ao encerramento. Checagem de tipos, lint e análise sintática do CSS aprovados. A suíte consolidada não foi reexecutada nesta rodada. O suporte transacional ao encerramento sem gastos foi mantido, sem alteração do helper ou banco.
+
+Execução anterior do encerramento: **67 testes, 67 aprovados, zero falhas ou testes ignorados**; lint e checagem de tipos aprovados naquela entrega. Essa contagem é histórica e distinta dos 12 casos focados desta revisão. Não houve QA visual adicional, acesso ao Firebase real, alteração do snapshot bruto, build, Git ou interferência no servidor de desenvolvimento nesta revisão.
+
 ## Contexto obrigatório para quem executar
 
 - Ler integralmente `MOTORISTA.md` e este plano. Usar `PLANO-MOTORISTA.md` como referência histórica, considerando as diferenças documentadas.
 - Na execução, inspecionar o código para confirmar o estado real antes de alterar. Não assumir que propostas deste arquivo já existem.
 - A aplicação já possui aproximadamente uma semana de dados reais. O usuário aceita mudanças na estrutura, desde que nenhum dado seja perdido.
-- O ambiente local utiliza o mesmo Firebase da aplicação publicada. Não há isolamento automático dos dados.
+- Após a conclusão dos refinamentos em 07/10/2026, desenvolvimento e produção usam diretamente o Firebase real original. O ambiente temporário foi retirado, sem importar seus lançamentos; preservar dados e backups reais continua obrigatório.
 - A persistência é Cloud Firestore: neste plano, ajuste de DB significa ajuste de documentos, coleções e regras, não migração de tabelas SQL.
 - Usar Git exclusivamente pelo terminal com `git`. Não fazer commit, push ou publicação do site como consequência automática da execução deste plano.
 - Preservar o acesso restrito ao proprietário e o comportamento de autenticação.
