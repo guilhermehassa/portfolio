@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 import ts from "typescript";
 
 const directory = mkdtempSync(join(tmpdir(), "motorista-calculos-"));
-for (const name of ["motorista", "motorista-evolution"]) {
+for (const name of ["motorista", "motorista-journey", "motorista-evolution", "motorista-day-ending", "motorista-maintenance"]) {
   const source = readFileSync(
     new URL(`../lib/${name}.ts`, import.meta.url),
     "utf8",
@@ -25,6 +25,8 @@ for (const name of ["motorista", "motorista-evolution"]) {
 const require = createRequire(import.meta.url);
 const base = require(join(directory, "motorista.js"));
 const calc = require(join(directory, "motorista-evolution.js"));
+const journey = require(join(directory, "motorista-journey.js"));
+const ending = require(join(directory, "motorista-day-ending.js"));
 after(() => rmSync(directory, { recursive: true, force: true }));
 const categories = [
   {
@@ -264,6 +266,21 @@ test("consumo observado usa tanque completo, parciais intermediários e volume f
   assert.equal(cycles[0].consumption, 10);
   assert.equal(cycles[0].volume, 30);
 });
+test("consumo observado ignora previousMissing legado e preserva os documentos originais", () => {
+  const fills = [
+    fill("a", "2026-10-01", 1000, 40),
+    fill("b", "2026-10-02", 1100, 10, "partial"),
+    fill("c", "2026-10-03", 1300, 20),
+  ];
+  const expected = calc.fuelCycles(fills, categories);
+  for (const previousMissing of [true, false, null, { historical: true }]) {
+    const legacy = fills.map((item) => ({ ...item, fuel: { ...item.fuel, previousMissing } }));
+    const snapshot = structuredClone(legacy);
+    assert.deepEqual(calc.fuelCycles(legacy, categories), expected);
+    assert.deepEqual(legacy, snapshot);
+    assert.deepEqual(base.totals([], legacy), base.totals([], fills));
+  }
+});
 test("consumo quebra com dados ausentes, combustível trocado ou ordem diária ambígua", () => {
   assert.equal(
     calc.fuelCycles(
@@ -273,16 +290,6 @@ test("consumo quebra com dados ausentes, combustível trocado ou ordem diária a
           kind: "fuel",
         }),
         fill("c", "2026-10-03", 1300, 30),
-      ],
-      categories,
-    ).length,
-    0,
-  );
-  assert.equal(
-    calc.fuelCycles(
-      [
-        fill("a", "2026-10-01", 1000, 40),
-        fill("c", "2026-10-03", 1300, 30, "full", { previousMissing: true }),
       ],
       categories,
     ).length,
@@ -310,7 +317,23 @@ test("consumo quebra com dados ausentes, combustível trocado ou ordem diária a
     0,
   );
 });
-test("resultado estimado substitui combustível pago, manutenção e fixos equivalentes", () => {
+test("consumo observado mantém requisitos de dados, unidade, odômetro e tanques completos", () => {
+  const start = fill("a", "2026-10-01", 1000, 40);
+  const end = fill("c", "2026-10-03", 1300, 20);
+  for (const changes of [
+    { fuelType: "" }, { unit: undefined }, { volume: null }, { volume: 0 },
+    { odometer: null }, { tank: "unknown" }, { fuelType: "Etanol" },
+    { unit: "m3" }, { odometer: 1000 }, { odometer: 999 },
+  ]) {
+    assert.equal(calc.fuelCycles([
+      start, fill("b", "2026-10-02", 1100, 10, "partial", changes), end,
+    ], categories).length, 0);
+  }
+  assert.equal(calc.fuelCycles([
+    fill("a", "2026-10-01", 1000, 40, "partial"), end,
+  ], categories).length, 0);
+});
+test("resultado estimado substitui combustível, mas ignora provisões históricas de fixos, desgaste e manutenção", () => {
   const d = day("2026-10-04", { uberCents: 30000, km: 100 });
   const expenses = [
     fill("pago", d.date, 1200, 40),
@@ -321,11 +344,11 @@ test("resultado estimado substitui combustível pago, manutenção e fixos equiv
   ];
   const result = calc.estimateDay(d, expenses, categories, [profile()]);
   assert.equal(result.fuel, 5000);
-  assert.equal(result.fixed, 500);
-  assert.equal(result.maintenance, 2000);
-  assert.equal(result.wear, 1000);
-  assert.equal(result.operational, 1000);
-  assert.equal(result.result, 20500);
+  assert.equal(result.fixed, undefined);
+  assert.equal(result.maintenance, 0);
+  assert.equal(result.wear, undefined);
+  assert.equal(result.operational, 41500);
+  assert.equal(result.result, -16500);
   assert.notEqual(result.result, base.totals([d], expenses).balance);
 });
 test("consumo manual histórico e vigências são preservados e preço futuro não retroage", () => {
@@ -527,6 +550,140 @@ const backup = (extra) => ({
   costProfiles: [],
   ...extra,
 });
+test("backup conserva previousMissing como metadado legado nas versões aceitas e no round-trip", () => {
+  const expenses = [true, false, null, { historical: "preservar" }].map((previousMissing, index) =>
+    fill(`legacy-${index}`, "2026-10-01", 1000 + index, 20, "full", { previousMissing }));
+  expenses.push(fill("without-flag", "2026-10-02", 1200, 20));
+  for (const version of [1, 2, 3, 4]) {
+    const restored = base.validateBackup(JSON.parse(JSON.stringify(backup({ version, gains: [], expenses }))));
+    assert.equal(restored.version, 4);
+    assert.deepEqual(restored.expenses, expenses);
+    const roundTrip = base.validateBackup(JSON.parse(JSON.stringify(restored)));
+    assert.deepEqual(roundTrip.expenses, expenses);
+    assert.equal(Object.hasOwn(roundTrip.expenses.at(-1).fuel, "previousMissing"), false);
+  }
+});
+test("metadado previousMissing continua sujeito à proteção JSON de campos históricos", () => {
+  for (const previousMissing of [Infinity, BigInt(1), JSON.parse('{"__proto__":true}')]) {
+    assert.throws(() => base.validateBackup(backup({ expenses: [
+      fill("legacy", "2026-10-01", 1000, 20, "full", { previousMissing }),
+    ] })), /campos históricos/i);
+  }
+});
+const at = (date, time) => `${date}T${time}:00-03:00`;
+const timedJourney = (extra = {}) => ({
+  startedAt: at("2026-10-01", "20:00"),
+  endedAt: at("2026-10-02", "04:00"),
+  pauses: [{ id: "p1", startedAt: at("2026-10-01", "23:30"), endedAt: at("2026-10-02", "00:30") }],
+  ...extra,
+});
+
+test("jornada atravessa meia-noite e desconta pausas dos minutos fixos", () => {
+  const timing = timedJourney();
+  assert.equal(journey.journeyMinutes(timing), 420);
+  const d = day("2026-10-01", { minutes: 420, journey: timing, filled: { uberCents: true, minutes: true } });
+  journey.validateJourney(d);
+  assert.equal(journey.journeyState(d), "ended");
+  assert.equal(journey.journeyMinutes(timing), 420);
+  assert.equal(d.date, "2026-10-01");
+});
+
+test("corrigir horários e data preserva IDs de pausas, desconhecidos e jornada original", () => {
+  const original = { ...timedJourney(), detalheAntigo: "preservar", pauses: [{ ...timedJourney().pauses[0], anotacaoAntiga: "manter" }] };
+  const copy = structuredClone(original);
+  const corrected = journey.journeyFromFields(original, "2026-10-02T20:00", "2026-10-03T05:00", [
+    { ...original.pauses[0], startedInput: "2026-10-02T23:30", endedInput: "2026-10-03T00:30" },
+  ]);
+  assert.equal(journey.journeyMinutes(corrected), 480);
+  assert.equal(corrected.startedAt.slice(0, 10), "2026-10-02");
+  assert.equal(corrected.detalheAntigo, "preservar");
+  assert.equal(corrected.pauses[0].id, "p1");
+  assert.equal(corrected.pauses[0].anotacaoAntiga, "manter");
+  assert.deepEqual(original, copy);
+});
+
+test("jornada aberta ou pausada não produz duração variável persistida", () => {
+  const running = day("2026-10-01", { status: "pending", journey: timedJourney({ endedAt: null, pauses: [] }) });
+  assert.equal(journey.journeyState(running), "running");
+  assert.equal(journey.journeyMinutes(running.journey), null);
+  running.journey.pauses.push({ id: "pausa", startedAt: at("2026-10-01", "22:00"), endedAt: null });
+  assert.equal(journey.journeyState(running), "paused");
+  assert.equal(journey.journeyMinutes(running.journey), null);
+  assert.equal(calc.eligible(running), false);
+  running.journey.pauses[0].endedAt = at("2026-10-01", "22:30");
+  assert.equal(journey.journeyState(running), "running");
+  assert.equal(running.minutes, 0);
+});
+
+test("horários recusam inversão, pausas sobrepostas e encerramento durante pausa", () => {
+  assert.throws(() => journey.journeyMinutes(timedJourney({ endedAt: at("2026-10-01", "19:00") })), /encerramento/);
+  assert.throws(() => journey.journeyMinutes(timedJourney({ pauses: [
+    { id: "p1", startedAt: at("2026-10-01", "21:00"), endedAt: at("2026-10-01", "22:00") },
+    { id: "p2", startedAt: at("2026-10-01", "21:30"), endedAt: at("2026-10-01", "23:00") },
+  ] })), /sobreposição/);
+  assert.throws(() => journey.journeyMinutes(timedJourney({ pauses: [
+    { id: "p1", startedAt: at("2026-10-01", "22:00"), endedAt: null },
+  ] })), /Encerre a pausa/);
+  assert.throws(() => journey.journeyMinutes(timedJourney({ startedAt: at("2026-02-30", "20:00") })), /inválida/);
+});
+
+test("horário local inclui fuso e rejeita datas inexistentes sem normalização silenciosa", () => {
+  const input = "2026-10-01T20:15";
+  const instant = journey.journeyInstant(input);
+  assert.match(instant, /^2026-10-01T20:15:00[+-]\d{2}:\d{2}$/);
+  assert.equal(journey.instantToLocalInput(instant), input);
+  assert.throws(() => journey.journeyInstant("2026-02-30T20:00"), /válidas/);
+  assert.throws(() => journey.journeyInstant("2026-10-01T25:00"), /válidas/);
+});
+
+test("backup conserva horários, pausas e desconhecidos, recusando minutos incompatíveis", () => {
+  const d = day("2026-10-01", { minutes: 420, journey: { ...timedJourney(), extraHistorico: "preservar" }, desconhecido: { valor: 3 } });
+  assert.deepEqual(base.validateBackup(backup({ days: [d] })).days[0], d);
+  assert.throws(() => base.validateBackup(backup({ days: [{ ...d, minutes: 480 }] })), /minutos gravados/i);
+  assert.throws(() => base.validateBackup(backup({ days: [{ ...d, date: "2026-10-02" }] })), /data de início/);
+});
+
+test("backup não aceita duas jornadas abertas e mantém legado sem fabricar horários", () => {
+  const first = day("2026-10-01", { status: "pending", journey: timedJourney({ endedAt: null, pauses: [] }) });
+  const second = day("2026-10-02", { status: "pending", journey: { startedAt: at("2026-10-02", "10:00"), endedAt: null, pauses: [] } });
+  assert.throws(() => base.validateBackup(backup({ days: [first, second] })), /mais de uma jornada aberta/);
+  const legacy = { ...base.emptyDay("2026-10-01"), uberCents: 30000, minutes: 480, origin: "legacy", campoAntigo: "manter" };
+  const restored = base.validateBackup(backup({ days: [legacy] })).days[0];
+  assert.deepEqual(restored, legacy);
+  assert.equal(restored.journey, undefined);
+});
+
+test("horários legados compatíveis mantêm minutos, ganhos, ausência de odômetro e origem", () => {
+  const legacy = { ...base.emptyDay("2026-10-01"), uberCents: 30000, minutes: 480, origin: "legacy", campoAntigo: "manter", journey: { startedAt: at("2026-10-01", "00:00"), endedAt: at("2026-10-01", "08:00"), pauses: [] } };
+  const restored = base.validateBackup(backup({ days: [legacy] })).days[0];
+  assert.deepEqual(restored, legacy);
+  assert.equal(restored.odometerStart, undefined);
+  assert.equal(restored.status, undefined);
+  assert.equal(journey.journeyMinutes(restored.journey), 480);
+  assert.equal(calc.eligible(restored), true);
+});
+
+test("importação mantém fechamento e troca de jornada aberta no mesmo lote", () => {
+  const entries = [
+    { name: "days", id: "2026-10-01", data: day("2026-10-01", { minutes: 420, journey: timedJourney() }) },
+    { name: "goals", id: "2026-10", data: { month: "2026-10", cents: 50000 } },
+    { name: "days", id: "2026-10-02", data: day("2026-10-02", { status: "pending", journey: { startedAt: at("2026-10-02", "10:00"), endedAt: null, pauses: [] } }) },
+  ];
+  const batches = base.importBatches(entries, 2, ["2026-10-01", "2026-10-02"]);
+  assert.deepEqual(batches[0].map((entry) => entry.id), ["2026-10-01", "2026-10-02"]);
+  assert.equal(batches[1][0].name, "goals");
+});
+
+test("CSV exporta horários, pausas e odômetros sem alterar minutos nem pagamentos", () => {
+  const d = day("2026-10-01", { minutes: 420, journey: timedJourney(), odometerStart: 10000, odometerEnd: 10200 });
+  const csv = base.exportCsv([d], [], categories);
+  assert.match(csv, /inicio_jornada/);
+  assert.match(csv, /2026-10-01T20:00:00-03:00/);
+  assert.match(csv, /2026-10-02T04:00:00-03:00/);
+  assert.match(csv, /p1/);
+  assert.match(csv, /"10000";"10200"/);
+  assert.equal(csv.split("\r\n").filter((row) => row.startsWith('"gasto"')).length, 0);
+});
 test("backup v4 conserva campos desconhecidos, planejamento e vigências no ciclo JSON", () => {
   const payload = backup({
     days: [
@@ -559,6 +716,19 @@ test("backup v4 conserva campos desconhecidos, planejamento e vigências no cicl
     JSON.parse(JSON.stringify(base.validateBackup(payload))),
   );
   assert.deepEqual(restored, payload);
+});
+
+test("arquivo antigo marcado como teste nunca pode ser importado nos dados reais", () => {
+  const input = JSON.parse(JSON.stringify(backup({ sourceEnvironment: "local-test" })));
+  assert.throws(() => base.assertBackupEnvironment(input), /teste local.*dados reais/);
+});
+
+test("backups reais atuais e antigos continuam aceitos sem selecionar outro ambiente", () => {
+  for (const version of [1, 3, 4]) {
+    const real = backup({ version });
+    assert.doesNotThrow(() => base.assertBackupEnvironment(real));
+    assert.equal(base.validateBackup(real).version, 4);
+  }
 });
 test("versões 1 e 3 continuam legadas; v2 soma gains preservando campos antigos", () => {
   for (const version of [1, 3]) {
@@ -764,4 +934,128 @@ test("backup rejeita pagamento ligado a vencimento inexistente e aceita IDs com 
     }),
   );
   assert.equal(valid.expenses[0].plannedExpenseId, "p--outro--2026-10-08");
+});
+
+test("encerramento por etapas bloqueia horário inválido sem alterar a jornada aberta", () => {
+  const previous = day("2026-10-05", {
+    status: "pending", minutes: 0,
+    journey: { startedAt: journey.journeyInstant("2026-10-05T09:00"), endedAt: null, pauses: [] },
+  });
+  const original = structuredClone(previous);
+  const now = Date.parse(journey.journeyInstant("2026-10-05T18:00"));
+  assert.throws(() => ending.validateEndingTime(previous, "2026-10-05T08:59", now), /depois do início/);
+  assert.throws(() => ending.validateEndingTime(previous, "2026-10-05T18:01", now), /futuro/);
+  assert.throws(() => ending.validateEndingTime({ ...previous, journey: { ...previous.journey, endedAt: journey.journeyInstant("2026-10-05T17:00") } }, "2026-10-05T18:00", now), /não está aberta/);
+  assert.deepEqual(previous, original);
+});
+
+test("rascunho de encerramento preserva ganhos e desconhecidos ao cruzar meia-noite com pausas", () => {
+  const instant = journey.journeyInstant;
+  const previous = day("2026-10-05", {
+    status: "pending", minutes: 0, odometerStart: 100, uberCents: 3000,
+    originalExtra: { source: "preservar" },
+    journey: { startedAt: instant("2026-10-05T22:00"), endedAt: null, custom: "horário original", pauses: [] },
+  });
+  const original = structuredClone(previous);
+  const pauses = [{
+    id: "pausa-antiga", startedAt: instant("2026-10-05T23:00"), endedAt: instant("2026-10-05T23:30"),
+    startedInput: "2026-10-05T23:00", endedInput: "2026-10-05T23:30", custom: "nota original",
+  }, {
+    id: "pausa-nova", startedAt: instant("2026-10-06T00:30"), endedAt: instant("2026-10-06T00:45"),
+    startedInput: "2026-10-06T00:30", endedInput: "2026-10-06T00:45",
+  }];
+  const result = ending.endingDay(previous, "2026-10-06T02:00", pauses, {
+    uberCents: "3000", ninetyNineCents: "0", otherCents: "", uberRides: "", ninetyNineRides: "",
+    odometerStart: "100", odometerEnd: "115", km: "", consumption: "", shift: "", note: "Fim do dia",
+  }, Date.parse(instant("2026-10-06T03:00")));
+  assert.equal(result.date, "2026-10-05");
+  assert.equal(result.minutes, 195);
+  assert.equal(result.km, 15);
+  assert.equal(result.uberCents, 3000);
+  assert.equal(result.filled.ninetyNineCents, true);
+  assert.equal(result.filled.otherCents, false);
+  assert.equal(result.status, "closed");
+  assert.equal(result.journey.startedAt, previous.journey.startedAt);
+  assert.equal(result.journey.custom, "horário original");
+  assert.equal(result.journey.pauses[0].id, "pausa-antiga");
+  assert.equal(result.journey.pauses[0].custom, "nota original");
+  assert.equal("startedInput" in result.journey.pauses[0], false);
+  assert.deepEqual(result.originalExtra, previous.originalExtra);
+  assert.deepEqual(previous, original);
+});
+
+test("etapas de pausas e ganhos recusam pendências antes de preparar encerramento", () => {
+  const instant = journey.journeyInstant;
+  const previous = day("2026-10-05", {
+    status: "pending", minutes: 0, filled: {}, odometerStart: 100,
+    journey: { startedAt: instant("2026-10-05T09:00"), endedAt: null, pauses: [] },
+  });
+  const now = Date.parse(instant("2026-10-05T18:00"));
+  const pause = { id: "p", startedAt: instant("2026-10-05T12:00"), endedAt: null, startedInput: "2026-10-05T12:00", endedInput: "" };
+  assert.throws(() => ending.endingJourney(previous, "2026-10-05T17:00", [pause], now), /fim de todas as pausas/);
+  assert.throws(() => ending.endingJourney(previous, "2026-10-05T17:00", [{ ...pause, endedInput: "2026-10-05T17:01" }], now), /dentro da jornada/);
+  const fields = { uberCents: "", ninetyNineCents: "", otherCents: "", odometerStart: "100", odometerEnd: "110", shift: "", note: "" };
+  assert.throws(() => ending.endingDay(previous, "2026-10-05T17:00", [], fields, now), /ao menos um ganho/);
+  assert.throws(() => ending.endingDay(previous, "2026-10-05T17:00", [], { ...fields, uberCents: "0", odometerEnd: "" }, now), /odômetro final/);
+  const result = ending.endingDay(previous, "2026-10-05T17:00", [], { ...fields, uberCents: "0" }, now);
+  assert.equal(result.minutes, 480);
+  assert.equal(result.uberCents, 0);
+  assert.equal(result.filled.uberCents, true);
+});
+
+test("períodos opcionais leem o único turno antigo e Misto sem fabricar seleção", () => {
+  const mixed = { shift: "mixed", extra: "original" };
+  const original = structuredClone(mixed);
+  assert.deepEqual(base.dayPeriods({ shift: "morning" }), ["morning"]);
+  assert.deepEqual(base.dayPeriods(mixed), []);
+  assert.deepEqual(base.dayPeriods({}), []);
+  assert.deepEqual(base.dayPeriods({ shift: "morning", periods: [] }), []);
+  assert.deepEqual(base.dayPeriods({ periods: ["night", "morning"] }), ["morning", "night"]);
+  assert.deepEqual(mixed, original);
+});
+
+test("edição e limpeza de períodos preservam turno cru, valores e ausência do campo histórico", () => {
+  const previous = day("2026-10-05", { shift: "mixed", minutes: 120, km: 12, uberCents: 5000, extra: { original: true } });
+  const fields = { uberCents: "5000", ninetyNineCents: "", otherCents: "", hours: "2", minutes: "0", km: "12", shift: "morning", note: "", consumption: "" };
+  const untouched = calc.dayFromFields(previous.date, previous, { ...fields, periods: "" }, "closed");
+  assert.equal(untouched.shift, "mixed");
+  assert.equal(Object.hasOwn(untouched, "periods"), false);
+  const selected = calc.dayFromFields(previous.date, previous, { ...fields, periods: '["night","morning"]' }, "closed");
+  assert.deepEqual(selected.periods, ["morning", "night"]);
+  assert.equal(selected.shift, "mixed");
+  assert.equal(selected.minutes, 120);
+  assert.equal(selected.uberCents, 5000);
+  assert.deepEqual(selected.extra, previous.extra);
+  assert.equal(Object.hasOwn(previous, "periods"), false);
+  const cleared = calc.dayFromFields(previous.date, selected, { ...fields, periods: "[]" }, "closed");
+  assert.deepEqual(cleared.periods, []);
+  assert.deepEqual(base.dayPeriods(cleared), []);
+  assert.equal(cleared.shift, "mixed");
+  assert.throws(() => calc.dayFromFields(previous.date, previous, { ...fields, periods: '["mixed"]' }, "closed"), /períodos válidos/);
+});
+
+test("backup mantém múltiplos períodos, vazios explícitos e turnos legados sem conversão", () => {
+  const payload = { version: 4, exportedAt: new Date().toISOString(),
+    days: [day("2026-10-01", { shift: "mixed" }), day("2026-10-02", { shift: "night", periods: ["morning", "night"], custom: "original" }), day("2026-10-03", { shift: "morning", periods: [] })],
+    expenses: [], categories: [], goals: [], plannedExpenses: [], costProfiles: [],
+  };
+  const result = base.validateBackup(JSON.parse(JSON.stringify(payload)));
+  assert.equal(Object.hasOwn(result.days[0], "periods"), false);
+  assert.equal(result.days[0].shift, "mixed");
+  assert.deepEqual(result.days[1].periods, ["morning", "night"]);
+  assert.equal(result.days[1].custom, "original");
+  assert.deepEqual(result.days[2].periods, []);
+  for (const periods of [["mixed"], ["morning", "morning"], ["evening"], "morning", null]) {
+    assert.throws(() => base.validateBackup({ ...payload, days: [day("2026-10-01", { periods })] }), /períodos/);
+  }
+});
+
+test("CSV exporta seleção, vazio explícito e turno histórico sem dividir ganhos ou horas", () => {
+  const previous = day("2026-10-05", { shift: "mixed", periods: ["morning", "night"], uberCents: 10000, minutes: 180, filled: { uberCents: true, minutes: true } });
+  const csv = base.exportCsv([previous, day("2026-10-06", { shift: "morning", periods: [] })], [], []);
+  assert.match(csv.split("\r\n")[0], /"periodos";"periodos_json";"turno_legado";/);
+  assert.match(csv, /"Manhã \+ Noite";"\[""morning"",""night""\]";"mixed"/);
+  assert.match(csv, /"";"\[\]";"morning"/);
+  assert.equal(csv.split("\r\n").filter((row) => row.startsWith('"ganho";"2026-10-05"')).length, 1);
+  assert.match(csv, /"dados_do_dia";"2026-10-05";"";"";"";"";"180"/);
 });

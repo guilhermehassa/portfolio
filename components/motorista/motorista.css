@@ -69,8 +69,201 @@ html:has(.motorista) {
 .motorista-form > button {
   align-self: flex-start;
 }
-.motorista-register-actions {
+.motorista-pause-list {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.motorista-pause-row {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--motorista-border-soft);
+  border-radius: 10px;
+}
+.motorista-journey-status {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--motorista-border);
+  border-radius: 12px;
+  background: var(--motorista-surface-soft);
+}
+.motorista-journey-status p {
+  margin: 0;
+}
+.motorista-home-actions {
+  display: grid;
+  gap: 14px;
+}
+.motorista-home-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  min-width: 0;
+}
+.motorista-home-summary-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+.motorista-home-summary-card h2 {
+  margin: 0;
+}
+.motorista-home-card-value {
+  font-size: clamp(26px, 3.5vw, 36px);
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
+}
+.motorista-home-summary-card .motorista-progress {
+  margin-top: 0;
+}
+.motorista-home-goal-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
   flex-wrap: wrap;
+  gap: 10px 18px;
+}
+.motorista-home-goal-heading p {
+  margin: 0 0 0 auto;
+  color: var(--motorista-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: right;
+}
+.motorista-home-goal-totals {
+  margin: 0;
+  color: var(--motorista-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.motorista-weekly-gains {
+  grid-column: 1 / -1;
+  margin: 0;
+  display: grid;
+  gap: 14px;
+}
+.motorista-weekly-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.motorista-weekly-header > label {
+  min-width: 0;
+  width: min(300px, 100%);
+}
+.motorista-weekly-axis {
+  margin: 8px 0 0;
+  color: var(--motorista-muted);
+  font-size: 12px;
+}
+.motorista-weekly-columns {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.motorista-weekly-columns::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 160px;
+  background: linear-gradient(to top, var(--motorista-border-soft) 1px, transparent 1px);
+  background-size: 100% 25%;
+  border-bottom: 1px solid var(--motorista-border);
+}
+.motorista-weekly-columns li {
+  position: relative;
+  min-width: 0;
+  text-align: center;
+  color: var(--motorista-muted);
+  font-size: 12px;
+}
+.motorista-weekly-bar-track {
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  height: 160px;
+  margin-bottom: 32px;
+  overflow: visible;
+}
+.motorista-weekly-bar {
+  position: relative;
+  width: 100%;
+  max-width: 76px;
+  background: var(--motorista-accent);
+  border-radius: 3px 3px 0 0;
+  overflow: visible;
+}
+.motorista-weekly-bar-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  white-space: nowrap;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-shadow: -1px 0 1px #081225, 1px 0 1px #081225, 0 -1px 1px #081225, 0 1px 1px #081225;
+}
+.motorista-weekly-day,
+.motorista-weekly-columns time {
+  display: block;
+}
+.motorista-weekly-day {
+  margin-bottom: 4px;
+  color: var(--motorista-text);
+  font-weight: 700;
+}
+.motorista-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.motorista-home-actions-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.motorista-home-actions-row > .motorista-secondary {
+  min-width: 0;
+  min-height: 80px;
+  align-self: start;
+  border-radius: 16px;
+  font-size: clamp(16px, 2vw, 20px);
+  line-height: 1.2;
+  text-align: center;
+}
+.motorista-journey-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+.motorista-journey-actions .motorista-journey-action {
+  min-width: 0;
+  min-height: 80px;
+  padding: 18px;
+  border-radius: 16px;
+  font-size: clamp(18px, 2.4vw, 26px);
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  text-align: center;
 }
 .motorista-calendar {
   display: grid;
@@ -163,6 +356,33 @@ html:has(.motorista) {
   color: var(--motorista-muted);
   font-size: 14px;
 }
+.motorista-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--motorista-muted);
+}
+.motorista-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.motorista-chart-legend i {
+  width: 18px;
+  height: 3px;
+  border-radius: 999px;
+}
+.motorista-report-category-bars .motorista-origin-track span {
+  background: var(--motorista-accent);
+}
+.motorista-report-platform {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+}
 .motorista-fuel-fields {
   border: 1px solid var(--motorista-border);
   border-radius: 12px;
@@ -178,13 +398,60 @@ html:has(.motorista) {
 .motorista-form .motorista-check {
   display: flex;
   flex-direction: row;
-  align-items: center;
+  align-items: flex-start;
+  min-width: 0;
   gap: 10px;
+  line-height: 1.5;
+  cursor: pointer;
 }
-.motorista-check input {
+.motorista .motorista-check > input[type="checkbox"] {
+  appearance: auto;
+  flex: 0 0 18px;
   width: 18px;
+  min-width: 18px;
+  max-width: 18px;
   height: 18px;
-  flex-shrink: 0;
+  min-height: 18px;
+  max-height: 18px;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  accent-color: var(--motorista-accent);
+}
+.motorista-check > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.motorista .motorista-periods {
+  display: block;
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.motorista .motorista-periods legend {
+  padding: 0;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.motorista .motorista-periods-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+.motorista .motorista-period-option {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  min-width: 0;
+  min-height: 44px;
+  gap: 8px;
+  cursor: pointer;
+}
+.motorista .motorista-period-option > span {
+  min-width: 0;
+  white-space: nowrap;
 }
 .motorista details summary {
   cursor: pointer;
@@ -199,15 +466,18 @@ html:has(.motorista) {
 .motorista-dialog textarea {
   min-width: 0;
 }
+.motorista-dialog input[type="date"],
+.motorista-dialog input[type="datetime-local"],
+.motorista-dialog input[type="week"],
+.motorista-dialog input[type="month"] {
+  position: relative;
+  max-width: 100%;
+}
 .motorista-dialog .motorista-dialog-actions {
   flex-wrap: wrap;
 }
 @media (max-width: 560px) {
   .motorista-dialog .motorista-field-grid {
-    grid-template-columns: 1fr;
-  }
-  .motorista-register-actions {
-    display: grid;
     grid-template-columns: 1fr;
   }
   .motorista-title-row {
@@ -615,6 +885,9 @@ html:has(.motorista) {
   width: 100%;
 }
 .motorista-picker input {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
   padding-right: 46px;
 }
 .motorista-picker.is-formatted input {
@@ -657,9 +930,10 @@ html:has(.motorista) {
   stroke-linejoin: round;
   pointer-events: none;
 }
-.motorista input[type="date"]::-webkit-calendar-picker-indicator,
-.motorista input[type="week"]::-webkit-calendar-picker-indicator,
-.motorista input[type="month"]::-webkit-calendar-picker-indicator {
+/* O indicador que ocupa todo o campo pertence somente ao picker customizado. */
+.motorista .motorista-picker > input[type="date"]::-webkit-calendar-picker-indicator,
+.motorista .motorista-picker > input[type="week"]::-webkit-calendar-picker-indicator,
+.motorista .motorista-picker > input[type="month"]::-webkit-calendar-picker-indicator {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -685,6 +959,21 @@ html:has(.motorista) {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+}
+.motorista-maintenance-schedule {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 210px;
+  overflow-y: auto;
+}
+.motorista-maintenance-schedule li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 .motorista fieldset {
   display: grid;
@@ -893,6 +1182,125 @@ html:has(.motorista) {
 .motorista-dialog .motorista-alert {
   margin-bottom: 16px;
 }
+.motorista-ending-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  height: min(760px, calc(100dvh - 32px));
+  overflow: hidden;
+}
+.motorista-ending-dialog .motorista-dialog-header {
+  flex: 0 0 auto;
+}
+.motorista-ending-wizard {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.motorista-ending-wizard > nav {
+  flex: 0 0 auto;
+}
+.motorista-form.motorista-ending-form {
+  flex: 1;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+.motorista-ending-content {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+.motorista-ending-step {
+  display: grid;
+  gap: 17px;
+  min-width: 0;
+}
+.motorista-ending-step.is-leaving.is-forward {
+  animation: motorista-step-out-forward 150ms ease-in both;
+}
+.motorista-ending-step.is-leaving.is-back {
+  animation: motorista-step-out-back 150ms ease-in both;
+}
+.motorista-ending-step.is-entering.is-forward {
+  animation: motorista-step-in-forward 180ms ease-out both;
+}
+.motorista-ending-step.is-entering.is-back {
+  animation: motorista-step-in-back 180ms ease-out both;
+}
+.motorista-ending-dialog .motorista-ending-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 190px;
+  gap: 9px;
+}
+.motorista-ending-actions > .motorista-primary {
+  white-space: nowrap;
+}
+.motorista-ending-back-space {
+  display: block;
+}
+@keyframes motorista-step-out-forward {
+  to { opacity: 0; transform: translateX(-24px); }
+}
+@keyframes motorista-step-out-back {
+  to { opacity: 0; transform: translateX(24px); }
+}
+@keyframes motorista-step-in-forward {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes motorista-step-in-back {
+  from { opacity: 0; transform: translateX(-24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.motorista-ending-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.motorista-ending-steps li {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--motorista-border);
+}
+.motorista-ending-steps .is-complete {
+  background: var(--motorista-accent);
+  opacity: 0.5;
+}
+.motorista-ending-steps .is-current {
+  background: var(--motorista-accent);
+  outline: 1px solid var(--motorista-accent);
+  outline-offset: 2px;
+}
+.motorista-ending-income {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.motorista .motorista-ending-income-source {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.motorista .motorista-ending-income-source legend {
+  padding: 0;
+  margin-bottom: 8px;
+}
+.motorista-ending-income-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.motorista .motorista-ending-income-source label {
+  min-width: 0;
+}
 .motorista-progress {
   height: 9px;
   margin-top: 12px;
@@ -921,6 +1329,42 @@ html:has(.motorista) {
 .motorista-alert.error {
   background: var(--motorista-danger-bg);
   color: var(--motorista-danger-text);
+}
+.motorista .motorista-toast {
+  position: fixed;
+  z-index: 100;
+  inset: auto;
+  top: max(20px, env(safe-area-inset-top));
+  right: max(20px, env(safe-area-inset-right));
+  width: min(420px, calc(100vw - 40px));
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  margin: 0;
+  border: 1px solid var(--motorista-border);
+  box-shadow: 0 8px 28px #02061733;
+  line-height: 1.5;
+  pointer-events: none;
+  animation: motorista-toast-in 240ms ease-out both;
+}
+.motorista .motorista-toast.is-closing {
+  animation: motorista-toast-out 240ms ease-in both;
+}
+.motorista-toast::backdrop {
+  background: transparent;
+  pointer-events: none;
+}
+@keyframes motorista-toast-in {
+  from { opacity: 0; transform: translateX(calc(100% + 24px)); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes motorista-toast-out {
+  to { opacity: 0; transform: translateX(calc(100% + 24px)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .motorista .motorista-toast,
+  .motorista-ending-step {
+    animation: none !important;
+  }
 }
 .motorista-loading {
   padding: 24px;
@@ -953,6 +1397,9 @@ html:has(.motorista) {
   margin: 0;
 }
 @media (max-width: 760px) {
+  .motorista .motorista-periods-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .motorista {
     padding: 0 12px;
   }
@@ -1019,6 +1466,16 @@ html:has(.motorista) {
   .motorista-section {
     gap: 14px;
   }
+  .motorista-home-cards {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .motorista-weekly-columns {
+    gap: 8px;
+  }
+  .motorista-weekly-header > label {
+    width: 100%;
+  }
   .motorista-title-row {
     align-items: start;
     flex-direction: column;
@@ -1049,6 +1506,25 @@ html:has(.motorista) {
   }
   .motorista-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .motorista-home-actions-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .motorista-home-actions-row > .motorista-journey-actions {
+    grid-column: 1 / -1;
+  }
+  .motorista-journey-actions .motorista-journey-action {
+    min-height: 56px;
+    padding: 12px;
+    border-radius: 12px;
+    font-size: 20px;
+  }
+  .motorista-home-actions-row > .motorista-secondary {
+    min-height: 44px;
+    padding: 10px;
+    border-radius: 12px;
+    font-size: 14px;
   }
   .motorista-overview {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1125,6 +1601,26 @@ html:has(.motorista) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 9px;
   }
+  .motorista-ending-dialog[open] {
+    height: calc(100dvh - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+  .motorista-ending-dialog .motorista-ending-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .motorista-ending-back-space {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .motorista-ending-actions > .motorista-primary {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    width: 100%;
+  }
+  .motorista-ending-actions > .motorista-secondary {
+    grid-row: 2;
+    width: 100%;
+  }
   .motorista-login {
     min-height: calc(100dvh - 40px);
   }
@@ -1140,6 +1636,9 @@ html:has(.motorista) {
     grid-template-columns: 1fr;
   }
   .motorista-stats {
+    gap: 9px;
+  }
+  .motorista-journey-actions {
     gap: 9px;
   }
   .motorista-metric {

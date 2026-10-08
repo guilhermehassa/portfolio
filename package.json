@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:motorista": "node --test tests/motorista.test.mjs"
+    "test:motorista": "node --test tests/motorista.test.mjs tests/motorista-journey-persistence.test.mjs tests/motorista-transient.test.mjs tests/motorista-home-cards.test.mjs tests/motorista-weekly-goal.test.mjs tests/motorista-day-editing.test.mjs tests/motorista-day-wizard.test.mjs tests/motorista-expense-editor.test.mjs tests/motorista-maintenance.test.mjs tests/motorista-maintenance-ui.test.mjs tests/motorista-reporting.test.mjs tests/motorista-reports-ui.test.mjs"
   },
   "dependencies": {
     "firebase": "^12.19.0",

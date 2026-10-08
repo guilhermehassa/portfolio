@@ -315,18 +315,7 @@ function ProfileEditor({
         ? ""
         : money(initial.priceCentsPerUnit),
     );
-  const [share, setShare] = useState(String(initial?.workShare ?? 100)),
-    [fixed, setFixed] = useState(
-      initial ? money(initial.fixedMonthlyCents) : "",
-    );
-  const [maintenance, setMaintenance] = useState(
-      initial?.maintenanceCentsPerKm == null
-        ? ""
-        : money(initial.maintenanceCentsPerKm),
-    ),
-    [wear, setWear] = useState(
-      initial?.wearCentsPerKm == null ? "" : money(initial.wearCentsPerKm),
-    );
+  const [share, setShare] = useState(String(initial?.workShare ?? 100));
   const [error, setError] = useState("");
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -335,10 +324,7 @@ function ProfileEditor({
       ? parseDecimal(consumption)
       : null;
     const priceValue = price.trim() ? parseCents(price) : null;
-    const workShare = parseDecimal(share),
-      fixedMonthlyCents = parseCents(fixed),
-      maintenanceCentsPerKm = parseCents(maintenance),
-      wearCentsPerKm = parseCents(wear);
+    const workShare = parseDecimal(share);
     if (
       !isDate(date) ||
       (consumptionValue !== null &&
@@ -347,13 +333,10 @@ function ProfileEditor({
         (!Number.isSafeInteger(priceValue) || priceValue <= 0)) ||
       !Number.isFinite(workShare) ||
       workShare < 0 ||
-      workShare > 100 ||
-      ![fixedMonthlyCents, maintenanceCentsPerKm, wearCentsPerKm].every(
-        (v) => Number.isSafeInteger(v) && v >= 0,
-      )
+      workShare > 100
     )
       return setError(
-        "Revise a vigência, consumo, preço, parcela de 0 a 100% e custos.",
+        "Revise a vigência, consumo, preço e parcela de 0 a 100%.",
       );
     if (profiles.some((p) => p.effectiveFrom === date && p.id !== initial?.id))
       return setError(
@@ -381,9 +364,6 @@ function ProfileEditor({
           consumption: consumptionValue,
           priceCentsPerUnit: priceValue,
           workShare,
-          fixedMonthlyCents,
-          maintenanceCentsPerKm,
-          wearCentsPerKm,
         },
         initial,
       )
@@ -451,31 +431,16 @@ function ProfileEditor({
           <MoneyField value={price} onChange={setPrice} />
         </label>
         <label>
-          Parcela do custo fixo atribuída ao trabalho (%)
+          Parcela dos custos do veículo atribuída ao trabalho (%)
           <input
             inputMode="decimal"
             value={share}
             onChange={(e) => setShare(e.target.value)}
           />
         </label>
-        <label>
-          Custo fixo mensal total (R$)
-          <MoneyField value={fixed} onChange={setFixed} />
-        </label>
-        <label>
-          Provisão de manutenção por KM (R$, opcional)
-          <MoneyField value={maintenance} onChange={setMaintenance} />
-        </label>
-        <label>
-          Desgaste/depreciação por KM (R$, opcional)
-          <MoneyField value={wear} onChange={setWear} />
-        </label>
       </div>
       <p className="motorista-muted">
-        No custo fixo informe aluguel, parcela ou outros custos conforme seu
-        veículo. Atribuição: valor mensal × parcela de trabalho ÷ dias corridos
-        do mês. Os KM já são somente de trabalho. Provisões substituem
-        pagamentos equivalentes na estimativa e não alteram saldo ou meta. Sem
+        Os KM informados são somente de trabalho. Sem
         preço manual, usa o último abastecimento com volume; sem consumo manual,
         usa ciclos válidos, quando disponíveis.
       </p>

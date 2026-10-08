@@ -4,6 +4,7 @@ import {
   goalForMonth,
   isDate,
   monthBounds,
+  periodsFromInput,
   localDate,
   totals,
   type Category,
@@ -13,13 +14,17 @@ import {
   type Goal,
   type PlannedExpense,
 } from "./motorista";
+import { journeyLabels, journeyState } from "./motorista-journey";
+import { analyticExpenses, maintenanceRows, periodTotals } from "./motorista-maintenance";
 
 export const income = (d: Day) =>
   d.uberCents + d.ninetyNineCents + d.otherCents;
 export const dayStatus = (d?: Day) =>
   !d
     ? "Sem jornada"
-    : d.status === "closed"
+    : d.journey
+      ? journeyLabels[journeyState(d)] + (journeyState(d) === "ended" && d.status === "pending" ? " · ganhos pendentes" : "")
+      : d.status === "closed"
       ? "Fechado"
       : d.status === "off"
         ? "Folga"
@@ -90,7 +95,7 @@ export function fuelExpense(e: Expense, categories: Category[]) {
   const c = categories.find((c) => c.id === e.categoryId);
   return (
     e.kind === "fuel" ||
-    (e.kind !== "expense" &&
+    (e.kind !== "expense" && e.kind !== "maintenance" &&
       (c?.costKind === "fuel" || e.categoryId === "combustivel"))
   );
 }
@@ -136,12 +141,10 @@ export function fuelCycles(
       ids = [];
       continue;
     }
-    if (
-      f.previousMissing ||
-      (start &&
-        (f.fuelType !== start.fuel?.fuelType ||
-          f.unit !== start.fuel?.unit ||
-          f.odometer <= lastOdometer))
+    if (start &&
+      (f.fuelType !== start.fuel?.fuelType ||
+        f.unit !== start.fuel?.unit ||
+        f.odometer <= lastOdometer)
     ) {
       start = null;
       volume = 0;
@@ -191,6 +194,7 @@ export function estimateDay(
   categories: Category[],
   profiles: CostProfile[],
   cycles = fuelCycles(expenses, categories),
+  goals: Goal[] = [],
 ) {
   const profile = applicableProfile(profiles, day.date);
   if (!eligible(day) || !hasField(day, "km") || day.km <= 0 || !profile)
@@ -224,16 +228,11 @@ export function estimateDay(
     (lastFuel ? lastFuel.cents / lastFuel.fuel!.volume! : 0);
   if (!consumption || !price) return null;
   const fuel = Math.round((day.km / consumption) * price);
-  const fixed = Math.round(
-    (profile.fixedMonthlyCents * profile.workShare) /
-      100 /
-      Number(monthBounds(day.date.slice(0, 7)).to.slice(-2)),
-  );
-  const maintenance = Math.round(day.km * (profile.maintenanceCentsPerKm ?? 0));
-  const wear = Math.round(day.km * (profile.wearCentsPerKm ?? 0));
+  const maintenance = maintenanceRows(expenses, goals, day.date, day.date)
+    .reduce((sum, row) => sum + row.allocatedCents, 0);
   let unclassified = 0;
   const operational = expenses
-    .filter((e) => e.date === day.date)
+    .filter((e) => e.kind !== "maintenance" && e.date === day.date)
     .reduce((sum, e) => {
       const c = categories.find((c) => c.id === e.categoryId);
       const scope =
@@ -245,14 +244,6 @@ export function estimateDay(
         unclassified++;
         return sum;
       }
-      if (c?.costKind === "fixed" && profile.fixedMonthlyCents > 0) return sum;
-      if (
-        c?.costKind === "maintenance" &&
-        (profile.maintenanceCentsPerKm ?? 0) > 0
-      )
-        return sum;
-      if (c?.costKind === "wear" && (profile.wearCentsPerKm ?? 0) > 0)
-        return sum;
       return (
         sum +
         Math.round(
@@ -260,13 +251,11 @@ export function estimateDay(
         )
       );
     }, 0);
-  const cost = fuel + fixed + maintenance + wear + operational;
+  const cost = fuel + maintenance + operational;
   return {
     date: day.date,
     fuel,
-    fixed,
     maintenance,
-    wear,
     operational,
     cost,
     result: income(day) - cost,
@@ -292,9 +281,10 @@ export function periodAnalysis(
   from: string,
   to: string,
   reference: string,
+  goals: Goal[] = [],
 ) {
   const periodDays = days.filter((d) => d.date >= from && d.date <= to);
-  const periodExpenses = expenses.filter((e) => e.date >= from && e.date <= to);
+  const periodExpenses = analyticExpenses(expenses, goals, from, to, reference);
   const work = periodDays.filter(eligible);
   const withHours = work.filter((d) => hasField(d, "minutes") && d.minutes > 0);
   const withKm = work.filter((d) => hasField(d, "km") && d.km > 0);
@@ -374,7 +364,7 @@ export function periodAnalysis(
       ? work.reduce((s, d) => s + income(d), 0) / work.length
       : null,
     costCalendarAverage: calendarDays
-      ? expenses
+      ? periodExpenses
           .filter((e) => e.date >= from && e.date <= to && e.date <= reference)
           .reduce((s, e) => s + e.cents, 0) / calendarDays
       : null,
@@ -387,6 +377,12 @@ export function periodAnalysis(
       ? (withHours.reduce((s, d) => s + income(d), 0) * 60) / hourMinutes
       : null,
     perKm: km ? withKm.reduce((s, d) => s + income(d), 0) / km : null,
+    balancePerHour: hourMinutes
+      ? (withHours.reduce((s, d) => s + income(d) - rows.find((row) => row.date === d.date)!.costs, 0) * 60) / hourMinutes
+      : null,
+    balancePerKm: km
+      ? withKm.reduce((s, d) => s + income(d) - rows.find((row) => row.date === d.date)!.costs, 0) / km
+      : null,
     perApp,
     weekdays: compareGroups((d) =>
       civilDate(d.date).toLocaleDateString("pt-BR", { weekday: "long" }),
@@ -446,7 +442,7 @@ export function historicalBase(
   const from = work.at(-1)?.date;
   const to = work[0]?.date;
   const window =
-    from && to ? expenses.filter((e) => e.date >= from && e.date <= to) : [];
+    from && to ? expenses.filter((e) => e.kind !== "maintenance" && e.date >= from && e.date <= to) : [];
   const separated = window.filter(
     (e) =>
       e.plannedExpenseId ||
@@ -505,10 +501,16 @@ export function monthlyPlanning(args: {
     : future
       ? addDate(bounds.from, -1)
       : reference;
-  const realized = totals(
-    days.filter((d) => d.date >= bounds.from && d.date <= actualTo),
-    expenses.filter((e) => e.date >= bounds.from && e.date <= actualTo),
-  ).balance;
+  const allocationGoals = args.workDates === undefined ? goals : [
+    ...goals.filter((g) => g.month !== month),
+    { ...own, month, cents: own?.cents ?? 0, workDates: args.workDates },
+  ];
+  const summary = periodTotals(days, expenses, allocationGoals, bounds.from, actualTo);
+  const realized = summary.balance;
+  const maintenance = maintenanceRows(expenses, allocationGoals, bounds.from, bounds.to, actualTo)
+    .reduce((s, row) => s + row.allocatedCents, 0);
+  const futureMaintenance = maintenanceRows(expenses, allocationGoals, bounds.from, bounds.to, actualTo)
+    .reduce((s, row) => s + row.futureCents, 0);
   const historyReference = future
     ? reference
     : ended
@@ -524,7 +526,7 @@ export function monthlyPlanning(args: {
   const dailyVariable =
     args.variableDailyCents ?? own?.variableDailyCents ?? base.dailyVariable;
   const isVariable = (e: Expense) =>
-    !e.plannedExpenseId &&
+    e.kind !== "maintenance" && !e.plannedExpenseId &&
     !["fixed", "extraordinary"].includes(
       categories.find((c) => c.id === e.categoryId)?.costKind ?? "",
     );
@@ -548,7 +550,7 @@ export function monthlyPlanning(args: {
     ? []
     : expenses.filter(
         (e) =>
-          e.date > actualTo && e.date >= bounds.from && e.date <= bounds.to,
+          e.kind !== "maintenance" && e.date > actualTo && e.date >= bounds.from && e.date <= bounds.to,
       );
   // Pagamentos futuros registrados substituem a previsão variável daquela data.
   const futureVariable = upcoming.filter(isVariable);
@@ -571,7 +573,7 @@ export function monthlyPlanning(args: {
   const pending = ended ? [] : occurrences.filter((o) => !o.expenseId);
   const commitments = pending.reduce((s, o) => s + o.cents, 0);
   const futureRecorded = upcoming.reduce((s, e) => s + e.cents, 0);
-  const futureCosts = variableAdjusted + commitments + futureRecorded;
+  const futureCosts = variableAdjusted + commitments + futureRecorded + futureMaintenance;
   const required =
     goal === null ? null : Math.max(goal - realized + futureCosts, 0);
   const partialGains = remaining.reduce(
@@ -611,6 +613,10 @@ export function monthlyPlanning(args: {
     future,
     goal,
     realized,
+    gains: summary.gains,
+    costs: summary.costs,
+    maintenance,
+    futureMaintenance,
     workDates,
     remaining,
     defaultCalendar: !own?.workDates,
@@ -653,9 +659,10 @@ export function dayFromFields(
     status,
     origin: previous?.origin ?? "user",
     filled: { ...previous?.filled },
-    shift: fields.shift as Day["shift"],
     note: fields.note ?? "",
   };
+  if (fields.periods !== undefined && fields.periods !== "")
+    result.periods = periodsFromInput(fields.periods);
   for (const key of [
     "uberCents",
     "ninetyNineCents",

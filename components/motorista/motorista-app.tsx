@@ -6,9 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type FormEvent,
-  type InputHTMLAttributes,
-  type MouseEvent,
 } from "react";
 import {
   GoogleAuthProvider,
@@ -22,15 +19,15 @@ import {
   doc,
   onSnapshot,
   runTransaction,
-  isolatedTest,
 } from "@/lib/motorista-persistence";
 import {
-  motoristaAuth,
-  motoristaDb,
+  getMotoristaAuth,
+  getMotoristaDb,
   MOTORISTA_UID,
 } from "@/lib/motorista-firebase";
 import {
   DEFAULT_CATEGORIES,
+  assertBackupEnvironment,
   civilDate,
   decimal,
   emptyDay,
@@ -42,7 +39,6 @@ import {
   localDate,
   monthBounds,
   money,
-  parseCents,
   periodBounds,
   totals,
   validateBackup,
@@ -52,23 +48,32 @@ import {
   type CostProfile,
   type Day,
   type Expense,
-  type Gain,
   type Goal,
   type PlannedExpense,
 } from "@/lib/motorista";
 import {
   dayStatus,
+  addDate,
   estimateDay,
   fuelExpense,
-  hasField,
   income,
   monthlyPlanning,
   plannedOccurrences,
 } from "@/lib/motorista-evolution";
-import { DayEditor, ExpenseEditor, MoneyField } from "./motorista-forms";
+import { DayEditor, ExpenseEditor, JourneyActionEditor, journeyActionTitles, type JourneyAction } from "./motorista-forms";
+import { journeyState } from "@/lib/motorista-journey";
+import { saveEndingDay, saveJourneyDay, syncJourneyState } from "@/lib/motorista-journey-persistence";
+import { EditingDayWizard, EndingDayWizard, type EndingDaySubmission } from "./motorista-day-ending";
 import MotoristaSettings, { type SaveDocument } from "./motorista-settings";
-import MotoristaReports, { Metric, PlanningCard } from "./motorista-reports";
+import MotoristaReports, { Metric } from "./motorista-reports";
+import MotoristaHomeCards from "./motorista-home-cards";
+import { PickerInput } from "./motorista-picker-input";
 import "./motorista.css";
+import { MotoristaToast, useMotoristaToast } from "./motorista-toast";
+import { clearRetiredMotoristaStorage } from "@/lib/motorista-browser-cleanup";
+import { weeklyGoalPlanning } from "@/lib/motorista-weekly-goal";
+import { installmentsPreview, maintenanceExpenseFromInput, maintenanceRows, periodTotals } from "@/lib/motorista-maintenance";
+import { MaintenanceEditor, maintenanceMonthLabel, type MaintenanceDraft } from "./motorista-maintenance";
 
 type Tab =
   "resumo" | "ganhos" | "gastos" | "relatorios" | "definicoes" | "backup";
@@ -144,33 +149,29 @@ export default function MotoristaApp() {
     [profiles, setProfiles] = useState<CostProfile[]>([]);
   const [loaded, setLoaded] = useState<Record<string, boolean>>({}),
     [loadError, setLoadError] = useState(""),
-    [saving, setSaving] = useState(false),
-    [notice, setNotice] = useState("");
+    [saving, setSaving] = useState(false);
+  const { toast, setNotice } = useMotoristaToast();
   const saveLock = useRef(false);
   const [gainsPeriod, setGainsPeriod] = useState(initialPeriod),
     [expensesPeriod, setExpensesPeriod] = useState(initialPeriod),
     [reportsPeriod, setReportsPeriod] = useState(initialPeriod);
-  const [modal, setModal] = useState<"day" | "expense" | "gain" | null>(null),
+  const [homeWeek, setHomeWeek] = useState(() => isoWeek(today));
+  const [modal, setModal] = useState<"day" | "expense" | "maintenance" | "journey" | null>(null),
     [dayDate, setDayDate] = useState(localDate);
+  const [dayMode, setDayMode] = useState<"edit" | "end" | "register" | "legacy">("edit");
+  const [dayDraft, setDayDraft] = useState<Day | undefined>();
+  const [journeyAction, setJourneyAction] = useState<JourneyAction>("start");
+  const [journeyDraft, setJourneyDraft] = useState<Day | undefined>();
   const [expenseDraft, setExpenseDraft] = useState<
     Partial<Expense> & { date: string }
   >({ date: today });
-  const [gainForm, setGainForm] = useState<Gain>({
-      id: "",
-      date: today,
-      source: "uber",
-      cents: 0,
-    }),
-    [gainValue, setGainValue] = useState("");
+  const [maintenanceDraft, setMaintenanceDraft] = useState<Expense>(),
+    [maintenanceNewId, setMaintenanceNewId] = useState("");
   const [backup, setBackup] = useState<Backup | null>(null),
     [importMode, setImportMode] = useState<"new" | "update">("new"),
     [importError, setImportError] = useState("");
   const modalRef = useRef<HTMLDialogElement>(null);
-  const authorized =
-    !!user &&
-    (isolatedTest()
-      ? user.uid === "isolated-test"
-      : user.uid === MOTORISTA_UID);
+  const authorized = !!user && user.uid === MOTORISTA_UID;
   const names = [
     "days",
     "expenses",
@@ -199,14 +200,10 @@ export default function MotoristaApp() {
     categories,
     plans,
   });
-  const lastDay = [...days]
-    .filter(
-      (d) =>
-        d.status !== "off" &&
-        (d.status || income(d) > 0 || d.minutes > 0 || d.km > 0),
-    )
-    .filter((d) => d.date <= today)
-    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  const currentWeeklyPlan = weeklyGoalPlanning({ reference: today, goals, days, expenses });
+  const openDays = days.filter((d) => d.journey?.endedAt === null);
+  const activeDay = openDays.length === 1 ? openDays[0] : undefined;
+  const activeState = journeyState(activeDay);
   const gainsBounds = selectedBounds(gainsPeriod),
     expenseBounds = selectedBounds(expensesPeriod),
     reportBounds = selectedBounds(reportsPeriod);
@@ -222,37 +219,41 @@ export default function MotoristaApp() {
     : [];
   const listedExpenses = validBounds(expenseBounds)
     ? expenses.filter(
-        (e) => e.date >= expenseBounds.from && e.date <= expenseBounds.to,
+        (e) => e.kind !== "maintenance" && e.date >= expenseBounds.from && e.date <= expenseBounds.to,
       )
     : [];
   const expenseDates = [...new Set(listedExpenses.map((e) => e.date))].sort(
     (a, b) => b.localeCompare(a),
   );
+  const listedMaintenance = validBounds(expenseBounds)
+    ? maintenanceRows(expenses, goals, expenseBounds.from, expenseBounds.to, today)
+      .sort((a, b) => b.month.localeCompare(a.month) || a.expense.id.localeCompare(b.expense.id))
+    : [];
+  const expensePeriodCosts = validBounds(expenseBounds)
+    ? periodTotals([], expenses, goals, expenseBounds.from, expenseBounds.to, today).costs : 0;
   const path = (name: string, id: string) =>
-    doc(motoristaDb, "users", user!.uid, name, id);
+    doc(getMotoristaDb(), "users", user!.uid, name, id);
+
+  useEffect(() => {
+    try { clearRetiredMotoristaStorage(window.localStorage); }
+    catch {
+      setNotice("Não foi possível remover os antigos dados locais de teste. As chaves são motorista-local-sandbox-v1 e motorista-isolated-qa-v4.");
+    }
+  }, [setNotice]);
 
   useEffect(() => {
     const timer = setInterval(() => setToday(localDate()), 60000);
     return () => clearInterval(timer);
   }, []);
   useEffect(() => {
-    if (isolatedTest()) {
-      queueMicrotask(() => {
-        setUser({
-          uid: "isolated-test",
-          displayName: "Teste isolado",
-          email: null,
-          photoURL: null,
-        } as User);
-        setAuthReady(true);
-      });
-      return;
-    }
     return onAuthStateChanged(
-      motoristaAuth,
+      getMotoristaAuth(),
       (current) => {
         setLoaded({});
         setLoadError("");
+        setModal(null);
+        setBackup(null);
+        setImportError("");
         setUser(current);
         setAuthReady(true);
       },
@@ -266,7 +267,7 @@ export default function MotoristaApp() {
     if (!authorized || !user) return;
     const listen = <T,>(name: string, setter: (items: T[]) => void) =>
       onSnapshot(
-        collection(motoristaDb, "users", user.uid, name),
+        collection(getMotoristaDb(), "users", user.uid, name),
         (snapshot) => {
           setter(
             snapshot.docs.map(
@@ -300,6 +301,10 @@ export default function MotoristaApp() {
     action: () => Promise<void>,
     success: string,
   ): Promise<boolean> {
+    if (!authorized || !allLoaded || loadError) {
+      setNotice("Aguarde o carregamento dos dados para salvar.");
+      return false;
+    }
     if (saveLock.current) return false;
     saveLock.current = true;
     setSaving(true);
@@ -318,7 +323,7 @@ export default function MotoristaApp() {
   }
   const saveDocument: SaveDocument = async (name, id, data, previous) =>
     withSave(async () => {
-      await runTransaction(motoristaDb, async (transaction) => {
+      await runTransaction(getMotoristaDb(), async (transaction) => {
         const ref = path(name, id),
           snapshot = await transaction.get(ref);
         if (
@@ -337,11 +342,34 @@ export default function MotoristaApp() {
         transaction.set(ref, data, { merge: true });
       });
     }, "Registro salvo. Planejamento e relatórios atualizados.");
-  const openDay = (date = today) => {
+  const openDay = (date = activeDay?.date ?? today, mode: "edit" | "end" = "edit") => {
+    const previous = days.find((day) => day.date === date);
     setDayDate(date);
+    setDayDraft(previous);
+    setDayMode(mode === "edit" && !previous ? "legacy" : mode);
     setNotice("");
     setModal("day");
   };
+  const openPreviousDay = () => {
+    setDayDate(addDate(today, -1));
+    setDayDraft(undefined);
+    setDayMode("register");
+    setNotice("");
+    setModal("day");
+  };
+  const openJourney = (action: JourneyAction) => {
+    setJourneyAction(action);
+    setJourneyDraft(activeDay);
+    setNotice("");
+    setModal("journey");
+  };
+  const saveDay = (day: Day, previous?: Day) => withSave(async () => {
+    await saveJourneyDay({ db: getMotoristaDb(), uid: user!.uid, day, previous, knownOpenDates: openDays.map((d) => d.date) });
+  }, "Atualização salva.");
+  const finishDay = (submission: EndingDaySubmission) => withSave(async () => {
+    await saveEndingDay({ db: getMotoristaDb(), uid: user!.uid, ...submission,
+      knownOpenDates: openDays.map((day) => day.date) });
+  }, "Dia encerrado. Planejamento e relatórios atualizados.");
   const newExpense = (date = today, fuel = false) => {
     setExpenseDraft({
       date,
@@ -352,6 +380,12 @@ export default function MotoristaApp() {
     setModal("expense");
   };
   const editExpense = (expense: Expense) => {
+    if (expense.kind === "maintenance") {
+      setMaintenanceDraft(expense);
+      setNotice("");
+      setModal("maintenance");
+      return;
+    }
     setExpenseDraft({
       ...expense,
       kind: fuelExpense(expense, categories) ? "fuel" : "expense",
@@ -359,22 +393,17 @@ export default function MotoristaApp() {
     setNotice("");
     setModal("expense");
   };
-  const newGain = (date = today) => {
-    setGainForm({ id: "", date, source: "uber", cents: 0 });
-    setGainValue("");
+  const newMaintenance = () => {
+    setMaintenanceDraft(undefined);
+    setMaintenanceNewId(crypto.randomUUID());
     setNotice("");
-    setModal("gain");
+    setModal("maintenance");
   };
-  const editGain = (gain: Gain) => {
-    setGainForm(gain);
-    setGainValue(money(gain.cents));
-    setNotice("");
-    setModal("gain");
-  };
-
+  const saveMaintenance = (draft: MaintenanceDraft, previous?: Expense) =>
+    saveExpense(maintenanceExpenseFromInput(draft, previous, maintenanceNewId), previous);
   async function saveExpense(expense: Expense, previous?: Expense) {
     return withSave(async () => {
-      await runTransaction(motoristaDb, async (tx) => {
+      await runTransaction(getMotoristaDb(), async (tx) => {
         const ref = path("expenses", expense.id),
           current = await tx.get(ref);
         if (
@@ -443,18 +472,12 @@ export default function MotoristaApp() {
     }, "Gasto salvo e previsão reconciliada.");
   }
   async function removeExpense(expense: Expense) {
-    if (
-      !window.confirm(
-        "Excluir o gasto de " +
-          money(expense.cents) +
-          " em " +
-          dateLabel(expense.date) +
-          "?",
-      )
-    )
+    if (!window.confirm(expense.kind === "maintenance"
+      ? `Excluir a manutenção de ${money(expense.cents)} e toda sua distribuição mensal?`
+      : "Excluir o gasto de " + money(expense.cents) + " em " + dateLabel(expense.date) + "?"))
       return;
     await withSave(async () => {
-      await runTransaction(motoristaDb, async (tx) => {
+      await runTransaction(getMotoristaDb(), async (tx) => {
         const ref = path("expenses", expense.id),
           snap = await tx.get(ref);
         if (
@@ -477,118 +500,6 @@ export default function MotoristaApp() {
         tx.delete(ref);
       });
     }, "Gasto excluído. A previsão vinculada voltou a ficar pendente.");
-  }
-  async function saveGain(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const cents = parseCents(gainValue);
-    if (!isDate(gainForm.date) || !Number.isSafeInteger(cents) || cents <= 0)
-      return setNotice("Informe data e valor positivo válidos.");
-    const originalDate = gainForm.id ? gainForm.id.split(":")[1] : "",
-      originalSource = gainForm.id
-        ? (gainForm.id.split(":")[2] as Gain["source"])
-        : null;
-    const success = await withSave(
-      async () => {
-        await runTransaction(motoristaDb, async (tx) => {
-          const destination = path("days", gainForm.date),
-            origin = originalDate ? path("days", originalDate) : null;
-          const originSnap = origin ? await tx.get(origin) : null;
-          const destinationSnap =
-            originalDate === gainForm.date && originSnap
-              ? originSnap
-              : await tx.get(destination);
-          const dest = {
-              ...emptyDay(gainForm.date),
-              ...destinationSnap.data(),
-            },
-            key = `${gainForm.source}Cents` as const,
-            same =
-              originalDate === gainForm.date &&
-              originalSource === gainForm.source;
-          if (dest[key] > 0 && !same)
-            throw new Error(
-              "Já existe ganho desta origem nessa data. Edite o existente.",
-            );
-          if (dest.status === "off")
-            throw new Error(
-              "Esta data está marcada como folga. Abra o dia e revise sua situação.",
-            );
-          const old = originSnap?.data();
-          if (
-            originalSource &&
-            (!old || old[`${originalSource}Cents`] !== gainForm.cents)
-          )
-            throw new Error("Ganho alterado em outra sessão. Reabra a edição.");
-          if (origin && originalSource && !same) {
-            const oldFilled = {
-              ...(old?.filled ?? {}),
-              [`${originalSource}Cents`]: false,
-            };
-            tx.set(
-              origin,
-              {
-                date: originalDate,
-                [`${originalSource}Cents`]: 0,
-                filled: oldFilled,
-              },
-              { merge: true },
-            );
-          }
-          const filled = { ...dest.filled, [key]: true };
-          if (originalDate === gainForm.date && originalSource && !same)
-            filled[`${originalSource}Cents`] = false;
-          tx.set(
-            destination,
-            {
-              date: gainForm.date,
-              [key]: cents,
-              filled,
-              ...(!destinationSnap.exists()
-                ? { status: "pending", origin: "user" }
-                : {}),
-            },
-            { merge: true },
-          );
-        });
-      },
-      gainForm.id ? "Ganho atualizado." : "Ganho registrado como parte do dia.",
-    );
-    if (success) setModal(null);
-  }
-  async function removeGain(gain: Gain) {
-    if (
-      !window.confirm(
-        "Excluir ganho de " +
-          money(gain.cents) +
-          " em " +
-          dateLabel(gain.date) +
-          "?",
-      )
-    )
-      return;
-    await withSave(async () => {
-      await runTransaction(motoristaDb, async (tx) => {
-        const ref = path("days", gain.date),
-          snapshot = await tx.get(ref);
-        const data = snapshot.data();
-        if (data?.[`${gain.source}Cents`] !== gain.cents)
-          throw new Error("Ganho alterado em outra sessão.");
-        tx.set(
-          ref,
-          {
-            [`${gain.source}Cents`]: 0,
-            filled: { ...data.filled, [`${gain.source}Cents`]: false },
-            ...(["uber", "ninetyNine", "other"].every(
-              (source) =>
-                source === gain.source || !(data[`${source}Cents`] > 0),
-            )
-              ? { status: "pending" }
-              : {}),
-          },
-          { merge: true },
-        );
-      });
-    }, "Ganho excluído; demais dados da jornada preservados.");
   }
   function downloadJson() {
     const payload: Backup = {
@@ -614,7 +525,9 @@ export default function MotoristaApp() {
     if (!file) return;
     if (file.size > 5000000) return setImportError("O arquivo excede 5 MB.");
     try {
-      setBackup(validateBackup(JSON.parse(await file.text())));
+      const input = JSON.parse(await file.text());
+      assertBackupEnvironment(input);
+      setBackup(validateBackup(input));
     } catch (error) {
       setImportError(errorMessage(error));
     }
@@ -652,6 +565,8 @@ export default function MotoristaApp() {
     : [];
   async function importBackup() {
     if (!backup) return;
+    try { assertBackupEnvironment(backup); }
+    catch (error) { setImportError(errorMessage(error)); return; }
     if (
       !window.confirm(
         "Importar " +
@@ -690,11 +605,14 @@ export default function MotoristaApp() {
         ],
       });
       // Lotes transacionais detectam alterações ocorridas após a prévia.
-      const batches = importBatches(importEntries);
+      const batches = importBatches(importEntries, 150, [
+        ...openDays.map((d) => d.date),
+        ...importEntries.filter((e) => e.name === "days" && (e.data as Day).journey?.endedAt === null).map((e) => e.id),
+      ]);
       let confirmed = 0;
       for (const group of batches) {
         try {
-          await runTransaction(motoristaDb, async (tx) => {
+          await runTransaction(getMotoristaDb(), async (tx) => {
             const checks = await Promise.all(
               group.map(async (e) => ({
                 entry: e,
@@ -717,6 +635,11 @@ export default function MotoristaApp() {
               if (previous && !snapshot.exists())
                 throw new Error("Registro removido desde a prévia.");
             }
+            const changedDays = group.filter((e) => e.name === "days").map((e) => e.data as Day);
+            if (changedDays.length) await syncJourneyState({
+              db: getMotoristaDb(), uid: user!.uid, transaction: tx, days: changedDays,
+              knownOpenDates: openDays.map((d) => d.date),
+            });
             group.forEach((e) => tx.set(path(e.name, e.id), e.data));
           });
           confirmed += group.length;
@@ -733,11 +656,6 @@ export default function MotoristaApp() {
       setBackup(null);
     }, importEntries.length + " itens importados sem duplicação.");
   }
-  function reportFor(date: string) {
-    setReportsPeriod({ ...initialPeriod(), filter: "day", anchor: date });
-    setTab("relatorios");
-  }
-
   if (!authReady)
     return (
       <main className="motorista">
@@ -777,7 +695,7 @@ export default function MotoristaApp() {
             onClick={async () => {
               try {
                 setAuthError("");
-                await signInWithPopup(motoristaAuth, new GoogleAuthProvider());
+                await signInWithPopup(getMotoristaAuth(), new GoogleAuthProvider());
               } catch (error) {
                 setAuthError(errorMessage(error));
               }
@@ -788,7 +706,7 @@ export default function MotoristaApp() {
           {user && (
             <button
               className="motorista-text-button"
-              onClick={() => signOut(motoristaAuth)}
+              onClick={() => signOut(getMotoristaAuth())}
             >
               Sair
             </button>
@@ -812,18 +730,10 @@ export default function MotoristaApp() {
               user={user}
               onSettings={() => setTab("definicoes")}
               onExport={() => setTab("backup")}
-              onSignOut={() =>
-                isolatedTest() ? setUser(null) : signOut(motoristaAuth)
-              }
+              onSignOut={() => signOut(getMotoristaAuth())}
             />
           </div>
         </header>
-        {isolatedTest() && (
-          <p className="motorista-alert">
-            Teste isolado · dados fictícios locais · Firebase real não é
-            acessado
-          </p>
-        )}
         <nav className="motorista-tabs" aria-label="Seções do motorista">
           {(["resumo", "ganhos", "gastos", "relatorios"] as Tab[]).map(
             (item) => (
@@ -845,16 +755,7 @@ export default function MotoristaApp() {
             ),
           )}
         </nav>
-        {notice && (
-          <p
-            role={notice.startsWith("Não") ? "alert" : "status"}
-            className={
-              "motorista-alert " + (notice.startsWith("Não") ? "error" : "")
-            }
-          >
-            {notice}
-          </p>
-        )}
+        {!modal && <MotoristaToast toast={toast} />}
         {loadError ? (
           <div className="motorista-card">
             <p className="motorista-alert" role="alert">
@@ -874,18 +775,22 @@ export default function MotoristaApp() {
             {tab === "resumo" && (
               <section className="motorista-section">
                 <div>
-                  <p className="motorista-eyebrow">No seu ritmo</p>
                   <h1>Início</h1>
                 </div>
-                <div className="motorista-card motorista-form">
-                  <h2>Registrar</h2>
-                  <p className="motorista-muted">
-                    Durante o trabalho, registre gastos. No fim, feche o dia com
-                    os ganhos dos aplicativos.
-                  </p>
-                  <div className="motorista-actions motorista-register-actions">
+                <div className="motorista-home-actions">
+                  <div className="motorista-home-actions-row">
+                    {openDays.length <= 1 && <div className="motorista-journey-actions">
+                      {openDays.length === 0 && <button className="motorista-primary motorista-journey-action" disabled={saving}
+                        onClick={() => openJourney("start")}>Iniciar dia</button>}
+                      {activeState === "running" && <>
+                        <button className="motorista-primary motorista-journey-action" disabled={saving} onClick={() => openJourney("pause")}>Iniciar pausa</button>
+                        <button className="motorista-secondary motorista-journey-action" disabled={saving} onClick={() => openDay(activeDay!.date, "end")}>Encerrar dia</button>
+                      </>}
+                      {activeState === "paused" && <button className="motorista-primary motorista-journey-action" disabled={saving}
+                        onClick={() => openJourney("resume")}>Encerrar pausa</button>}
+                    </div>}
                     <button
-                      className="motorista-primary"
+                      className="motorista-secondary"
                       onClick={() => newExpense()}
                     >
                       Registrar gasto
@@ -896,89 +801,21 @@ export default function MotoristaApp() {
                     >
                       Abastecer
                     </button>
-                    <button
-                      className="motorista-secondary"
-                      onClick={() => openDay()}
-                    >
-                      Fechar dia
-                    </button>
                   </div>
+                  {activeDay && <div className="motorista-journey-status">
+                    <p><strong>{dayStatus(activeDay)}</strong> · {dateLabel(activeDay.date)}</p>
+                    <p className="motorista-muted">Início: {new Date(activeDay.journey!.startedAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                      {activeDay.odometerStart != null && ` · Odômetro: ${decimal(activeDay.odometerStart, 1)} km`}</p>
+                  </div>}
+                  {openDays.length > 1 && <p className="motorista-alert">Há mais de uma jornada aberta. Corrija os dias existentes antes de iniciar outra.</p>}
                 </div>
-                <div className="motorista-card motorista-form">
-                  <h2>Última jornada</h2>
-                  {lastDay ? (
-                    <>
-                      <p>
-                        {dateLabel(lastDay.date)} ·{" "}
-                        <strong>{dayStatus(lastDay)}</strong>
-                      </p>
-                      <div className="motorista-stats">
-                        <Metric
-                          label="Ganhos registrados"
-                          value={money(income(lastDay))}
-                        />
-                        <Metric
-                          label="Gastos na data"
-                          value={money(
-                            expenses
-                              .filter((e) => e.date === lastDay.date)
-                              .reduce((s, e) => s + e.cents, 0),
-                          )}
-                        />
-                        <Metric
-                          label="Saldo dos lançamentos"
-                          value={money(
-                            income(lastDay) -
-                              expenses
-                                .filter((e) => e.date === lastDay.date)
-                                .reduce((s, e) => s + e.cents, 0),
-                          )}
-                        />
-                      </div>
-                      <p className="motorista-muted">
-                        Horas:{" "}
-                        {hasField(lastDay, "minutes")
-                          ? decimal(lastDay.minutes / 60, 2) + " h"
-                          : "não informadas"}{" "}
-                        · KM:{" "}
-                        {hasField(lastDay, "km")
-                          ? decimal(lastDay.km, 1)
-                          : "não informados"}
-                        . Ganhos são os totais registrados manualmente.
-                      </p>
-                      <div className="motorista-actions">
-                        <button
-                          className="motorista-secondary"
-                          onClick={() => openDay(lastDay.date)}
-                        >
-                          Completar ou corrigir
-                        </button>
-                        <button
-                          className="motorista-text-button"
-                          onClick={() => reportFor(lastDay.date)}
-                        >
-                          Detalhar jornada
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="motorista-muted">
-                      Nenhuma jornada registrada. Um gasto não fecha o dia;
-                      ausência de registro não significa folga.
-                    </p>
-                  )}
-                </div>
-                <PlanningCard
+                <MotoristaHomeCards
                   plan={currentPlan}
-                  onSettings={() => setTab("definicoes")}
-                  onReports={() => {
-                    setReportsPeriod({
-                      ...initialPeriod(),
-                      filter: "month",
-                      month: today.slice(0, 7),
-                    });
-                    setTab("relatorios");
-                  }}
+                  weeklyPlan={currentWeeklyPlan}
+                  days={days}
+                  today={today}
+                  week={homeWeek}
+                  onWeekChange={setHomeWeek}
                 />
               </section>
             )}
@@ -986,21 +823,14 @@ export default function MotoristaApp() {
               <section className="motorista-section">
                 <div className="motorista-title-row">
                   <div>
-                    <p className="motorista-eyebrow">Entradas e jornada</p>
-                    <h1>Ganhos e fechamento</h1>
+                    <p className="motorista-eyebrow">Ganhos</p>
                   </div>
-                  <div className="motorista-actions motorista-quick-actions">
+                  <div className="motorista-actions motorista-quick-actions motorista-single-action">
                     <button
                       className="motorista-primary"
-                      onClick={() => openDay()}
+                      onClick={openPreviousDay}
                     >
-                      Fechar dia
-                    </button>
-                    <button
-                      className="motorista-secondary"
-                      onClick={() => newGain()}
-                    >
-                      Registrar ganho
+                      Registrar dia anterior
                     </button>
                   </div>
                 </div>
@@ -1018,8 +848,7 @@ export default function MotoristaApp() {
                   </p>
                 ) : !listedDays.length ? (
                   <p className="motorista-card">
-                    Nenhum dia neste período. Pode abrir uma data retroativa em
-                    Fechar dia.
+                    Nenhum dia neste período. Use Registrar dia anterior para cadastrar uma data passada.
                   </p>
                 ) : (
                   listedDays.map((day) => (
@@ -1038,7 +867,7 @@ export default function MotoristaApp() {
                           className="motorista-secondary"
                           onClick={() => openDay(day.date)}
                         >
-                          Abrir dia
+                          Editar
                         </button>
                       </div>
                       {legacyGains([day]).map((gain) => (
@@ -1053,33 +882,6 @@ export default function MotoristaApp() {
                             </strong>
                             <span>{money(gain.cents)}</span>
                           </span>
-                          <div className="motorista-actions motorista-icon-actions">
-                            <button
-                              className="motorista-icon-button"
-                              aria-label={
-                                "Editar ganho de " +
-                                gain.source +
-                                " de " +
-                                day.date
-                              }
-                              onClick={() => editGain(gain)}
-                            >
-                              <EditIcon />
-                            </button>
-                            <button
-                              className="motorista-icon-button motorista-danger"
-                              aria-label={
-                                "Excluir ganho de " +
-                                gain.source +
-                                " de " +
-                                day.date
-                              }
-                              disabled={saving}
-                              onClick={() => removeGain(gain)}
-                            >
-                              <DeleteIcon />
-                            </button>
-                          </div>
                         </div>
                       ))}
                       <p className="motorista-muted">
@@ -1092,12 +894,6 @@ export default function MotoristaApp() {
                           : "KM não informados"}
                         {day.note ? " · " + day.note : ""}
                       </p>
-                      <button
-                        className="motorista-text-button"
-                        onClick={() => reportFor(day.date)}
-                      >
-                        Ver relatório do dia
-                      </button>
                     </div>
                   ))
                 )}
@@ -1107,12 +903,7 @@ export default function MotoristaApp() {
               <section className="motorista-section">
                 <div className="motorista-title-row">
                   <div>
-                    <p className="motorista-eyebrow">Despesas</p>
-                    <h1>Gastos</h1>
-                    <p className="motorista-muted">
-                      Todos os pagamentos, inclusive pessoais e dias sem
-                      jornada.
-                    </p>
+                    <p className="motorista-eyebrow">Gastos</p>
                   </div>
                   <div className="motorista-actions">
                     <button
@@ -1127,6 +918,9 @@ export default function MotoristaApp() {
                     >
                       Abastecer
                     </button>
+                    <button className="motorista-secondary" onClick={newMaintenance}>
+                      Registrar manutenção
+                    </button>
                   </div>
                 </div>
                 <PeriodFilter
@@ -1135,16 +929,16 @@ export default function MotoristaApp() {
                 />
                 <Metric
                   label="Total de gastos no período"
-                  value={money(listedExpenses.reduce((s, e) => s + e.cents, 0))}
+                  value={money(expensePeriodCosts)}
                 />
                 {!validBounds(expenseBounds) ? (
                   <p className="motorista-alert">
                     Selecione um período válido.
                   </p>
-                ) : !expenseDates.length ? (
+                ) : !expenseDates.length && !listedMaintenance.length ? (
                   <p className="motorista-card">Nenhum gasto neste período.</p>
                 ) : (
-                  expenseDates.map((date) => (
+                  <>{expenseDates.map((date) => (
                     <div
                       className="motorista-card motorista-day-group"
                       key={date}
@@ -1204,30 +998,53 @@ export default function MotoristaApp() {
                           </div>
                         ))}
                     </div>
-                  ))
+                  ))}
+                  {listedMaintenance.map((row) => <div key={`${row.expense.id}:${row.month}`} className="motorista-card motorista-day-group">
+                    <div className="motorista-day-heading">
+                      <div>
+                        <h2>Manutenção · {maintenanceMonthLabel(row.month)}</h2>
+                        <p>{row.expense.note || "Manutenção"}</p>
+                      </div>
+                    </div>
+                    <div className="motorista-day-row motorista-expense-day-row">
+                      <div className="motorista-expense-details">
+                        <strong>Total: {money(row.expense.cents)} · {row.installments} {row.installments === 1 ? "parcela" : "parcelas"}</strong>
+                        <small>Parcela {row.installment} de {row.installments} · Cota do mês: {money(row.monthlyCents)}</small>
+                        <small>Custo reconhecido no período</small>
+                        {row.futureCents > 0 && <small>Previsto neste período: {money(row.futureCents)}</small>}
+                      </div>
+                      <strong>{money(row.allocatedCents)}</strong>
+                      <div className="motorista-actions motorista-icon-actions">
+                        <button className="motorista-icon-button" aria-label={`Editar manutenção ${row.expense.id}`}
+                          onClick={() => editExpense(row.expense)}><EditIcon /></button>
+                        <button className="motorista-icon-button motorista-danger" disabled={saving}
+                          aria-label={`Excluir manutenção ${row.expense.id}`} onClick={() => removeExpense(row.expense)}><DeleteIcon /></button>
+                      </div>
+                    </div>
+                  </div>)}
+                  </>
                 )}
               </section>
             )}
             {tab === "relatorios" &&
-              (validBounds(reportBounds) ? (
+              (validBounds(reportBounds) && reportBounds.from <= today ? (
                 <MotoristaReports
                   days={days}
                   expenses={expenses}
                   categories={categories}
                   goals={goals}
-                  plans={plans}
-                  profiles={profiles}
                   from={reportBounds.from}
                   to={reportBounds.to}
-                  filter={reportsPeriod.filter}
+                  reference={today}
+                  filter={reportsPeriod.filter === "month" ? "month" : "week"}
                   controls={
                     <PeriodFilter
                       selection={reportsPeriod}
                       onChange={setReportsPeriod}
+                      allowedFilters={["week", "month"]}
+                      maxReference={today}
                     />
                   }
-                  onDay={openDay}
-                  onSettings={() => setTab("definicoes")}
                 />
               ) : (
                 <section className="motorista-section">
@@ -1235,9 +1052,13 @@ export default function MotoristaApp() {
                   <PeriodFilter
                     selection={reportsPeriod}
                     onChange={setReportsPeriod}
+                    allowedFilters={["week", "month"]}
+                    maxReference={today}
                   />
                   <p className="motorista-alert">
-                    Selecione um período válido.
+                    {validBounds(reportBounds) && reportBounds.from > today
+                      ? "Selecione a semana ou o mês atual, ou um período passado."
+                      : "Selecione um período válido."}
                   </p>
                 </section>
               ))}
@@ -1288,9 +1109,11 @@ export default function MotoristaApp() {
                             categories,
                             days
                               .map((d) =>
-                                estimateDay(d, expenses, categories, profiles),
+                                estimateDay(d, expenses, categories, profiles, undefined, goals),
                               )
                               .filter((e) => e !== null),
+                            goals,
+                            today,
                           ),
                           "motorista-lancamentos-" + today + ".csv",
                           "text/csv;charset=utf-8",
@@ -1378,7 +1201,7 @@ export default function MotoristaApp() {
         {modal && (
           <dialog
             ref={modalRef}
-            className="motorista-dialog"
+            className={`motorista-dialog${modal === "day" && dayMode !== "legacy" ? " motorista-ending-dialog" : ""}`}
             aria-labelledby="motorista-dialog-title"
             onCancel={(event) => {
               if (saving) event.preventDefault();
@@ -1388,11 +1211,11 @@ export default function MotoristaApp() {
             <div className="motorista-dialog-header">
               <h2 id="motorista-dialog-title">
                 {modal === "day"
-                  ? "Fechar dia"
-                  : modal === "gain"
-                    ? gainForm.id
-                      ? "Editar ganho"
-                      : "Registrar ganho"
+                  ? dayMode === "end" ? "Encerrar dia" : dayMode === "register" ? "Registrar dia anterior" : dayMode === "edit" ? "Editar dia" : "Abrir ou corrigir dia"
+                  : modal === "journey"
+                    ? journeyActionTitles[journeyAction]
+                  : modal === "maintenance"
+                    ? maintenanceDraft ? "Editar manutenção" : "Registrar manutenção"
                     : expenseDraft.id
                       ? "Editar gasto"
                       : expenseDraft.kind === "fuel"
@@ -1409,91 +1232,43 @@ export default function MotoristaApp() {
                 ×
               </button>
             </div>
-            {notice &&
-              (notice.startsWith("Não") || notice.startsWith("Informe")) && (
-                <p className="motorista-alert error" role="alert">
-                  {notice}
-                </p>
-              )}
+            <MotoristaToast toast={toast} />
             {modal === "day" ? (
+              dayMode === "end" ? dayDraft ? (
+                <EndingDayWizard key={dayDate} day={dayDraft} categories={categories}
+                  plans={plans} saving={saving} onFinish={finishDay} onCancel={() => setModal(null)} />
+              ) : <p className="motorista-alert error">A jornada não foi encontrada. Feche e reabra o encerramento.</p> : dayMode === "legacy" ? (
               <DayEditor
                 key={dayDate}
                 date={dayDate}
                 days={days}
                 expenses={expenses}
                 saving={saving}
-                onSave={(day, previous) =>
-                  saveDocument("days", day.date, day, previous)
-                }
+                mode="edit"
+                onSave={saveDay}
                 onCancel={() => setModal(null)}
               />
+              ) : (
+                <EditingDayWizard key={`${dayMode}:${dayDate}`} mode={dayMode} date={dayDate} day={dayDraft}
+                  days={days} saving={saving} onSave={saveDay} onCancel={() => setModal(null)} />
+              )
+            ) : modal === "journey" ? (
+              <JourneyActionEditor action={journeyAction} day={journeyDraft} days={days} saving={saving}
+                onSave={saveDay} onCancel={() => setModal(null)} onCorrect={(date) => openDay(date)} />
             ) : modal === "expense" ? (
               <ExpenseEditor
                 key={expenseDraft.id ?? "new"}
                 initial={expenseDraft}
                 expenses={expenses}
                 categories={categories}
-                plans={plans}
                 saving={saving}
                 onSave={saveExpense}
                 onCancel={() => setModal(null)}
               />
-            ) : (
-              <form className="motorista-form" onSubmit={saveGain}>
-                <label>
-                  Data
-                  <input
-                    type="date"
-                    value={gainForm.date}
-                    required
-                    onChange={(e) =>
-                      setGainForm({ ...gainForm, date: e.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  Origem
-                  <select
-                    value={gainForm.source}
-                    onChange={(e) =>
-                      setGainForm({
-                        ...gainForm,
-                        source: e.target.value as Gain["source"],
-                      })
-                    }
-                  >
-                    <option value="uber">Uber</option>
-                    <option value="ninetyNine">99</option>
-                    <option value="other">Outros</option>
-                  </select>
-                </label>
-                <label>
-                  Valor (R$)
-                  <MoneyField
-                    value={gainValue}
-                    onChange={setGainValue}
-                    required
-                  />
-                </label>
-                <p className="motorista-muted">
-                  Um total por origem e data. Use Fechar dia para registrar os
-                  aplicativos e a jornada juntos.
-                </p>
-                <div className="motorista-actions">
-                  <button
-                    type="button"
-                    className="motorista-secondary"
-                    onClick={() => setModal(null)}
-                    disabled={saving}
-                  >
-                    Cancelar
-                  </button>
-                  <button className="motorista-primary" disabled={saving}>
-                    Salvar ganho
-                  </button>
-                </div>
-              </form>
-            )}
+            ) : modal === "maintenance" ? (
+              <MaintenanceEditor key={maintenanceDraft?.id ?? maintenanceNewId} initial={maintenanceDraft}
+                saving={saving} onSave={saveMaintenance} installmentsPreview={installmentsPreview} onCancel={() => setModal(null)} />
+            ) : null}
           </dialog>
         )}
       </div>
@@ -1504,9 +1279,13 @@ export default function MotoristaApp() {
 function PeriodFilter({
   selection,
   onChange,
+  allowedFilters = ["day", "week", "month", "custom"],
+  maxReference,
 }: {
   selection: PeriodSelection;
   onChange: (selection: PeriodSelection) => void;
+  allowedFilters?: readonly Filter[];
+  maxReference?: string;
 }) {
   const bounds = selectedBounds(selection);
   const weekLabel = validBounds(bounds)
@@ -1525,10 +1304,9 @@ function PeriodFilter({
           value={selection.filter}
           onChange={(event) => update({ filter: event.target.value as Filter })}
         >
-          <option value="day">Dia</option>
-          <option value="week">Semana</option>
-          <option value="month">Mês</option>
-          <option value="custom">Personalizado</option>
+          {allowedFilters.map((filter) => <option key={filter} value={filter}>
+            {filter === "day" ? "Dia" : filter === "week" ? "Semana" : filter === "month" ? "Mês" : "Personalizado"}
+          </option>)}
         </select>
       </label>
       {selection.filter === "custom" ? (
@@ -1565,6 +1343,7 @@ function PeriodFilter({
           <PickerInput
             type="week"
             value={selection.week}
+            max={maxReference ? isoWeek(maxReference) : undefined}
             displayValue={weekLabel}
             aria-label={`Semana: ${weekLabel}`}
             onChange={(event) => update({ week: event.target.value })}
@@ -1576,43 +1355,12 @@ function PeriodFilter({
           <PickerInput
             type="month"
             value={selection.month}
+            max={maxReference?.slice(0, 7)}
             onChange={(event) => update({ month: event.target.value })}
           />
         </label>
       )}
     </div>
-  );
-}
-
-function PickerInput({
-  type,
-  displayValue,
-  ...props
-}: Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & {
-  type: "date" | "week" | "month";
-  displayValue?: string;
-}) {
-  const openPicker = (event: MouseEvent<HTMLInputElement>) => {
-    try {
-      event.currentTarget.showPicker();
-    } catch {
-      event.currentTarget.focus();
-    }
-  };
-
-  return (
-    <span className={`motorista-picker${displayValue ? " is-formatted" : ""}`}>
-      <input {...props} type={type} onClick={openPicker} />
-      {displayValue && (
-        <span className="motorista-picker-value" aria-hidden="true">
-          {displayValue}
-        </span>
-      )}
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
-        <rect x="3" y="5" width="18" height="16" rx="2" />
-        <path d="M7 3v4M17 3v4M3 10h18" />
-      </svg>
-    </span>
   );
 }
 
@@ -1625,7 +1373,7 @@ function AccountMenu({
   user: User;
   onSettings: () => void;
   onExport: () => void;
-  onSignOut: () => void;
+  onSignOut?: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
@@ -1711,7 +1459,7 @@ function AccountMenu({
         >
           Exportar
         </button>
-        <button
+        {onSignOut && <button
           type="button"
           className="motorista-account-signout"
           onClick={() => {
@@ -1720,7 +1468,7 @@ function AccountMenu({
           }}
         >
           Sair
-        </button>
+        </button>}
       </dialog>
     </>
   );

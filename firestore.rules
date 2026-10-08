@@ -7,8 +7,72 @@ service cloud.firestore {
         && request.auth.uid == userId;
     }
 
+    function journeyOpen(data) {
+      return data.keys().hasAny(['journey'])
+        && data.journey is map
+        && data.journey.keys().hasAll(['endedAt'])
+        && data.journey.endedAt == null;
+    }
+
+    function journeyStatePath(userId) {
+      return /databases/$(database)/documents/users/$(userId)/journeyState/current;
+    }
+
+    function journeyDayPath(userId, date) {
+      return /databases/$(database)/documents/users/$(userId)/days/$(date);
+    }
+
+    function pointsToJourney(userId, date) {
+      return existsAfter(journeyStatePath(userId))
+        && getAfter(journeyStatePath(userId)).data.date == date;
+    }
+
+    function journeyReleased(userId, date) {
+      return !existsAfter(journeyStatePath(userId))
+        || getAfter(journeyStatePath(userId)).data.date != date;
+    }
+
+    function validJourneyState(userId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['date'])
+        && data.keys().hasAll(['date'])
+        && (data.date == null
+          || (data.date is string
+            && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && existsAfter(journeyDayPath(userId, data.date))
+            && journeyOpen(getAfter(journeyDayPath(userId, data.date)).data)));
+    }
+
+    function previousJourneyReleased(userId) {
+      let date = resource.data.date;
+      return date == null
+        || date == request.resource.data.date
+        || !existsAfter(journeyDayPath(userId, date))
+        || !journeyOpen(getAfter(journeyDayPath(userId, date)).data);
+    }
+
     match /users/{userId}/days/{date} {
-      allow read, write: if owner(userId);
+      allow read: if owner(userId);
+      allow create: if owner(userId)
+        && (!journeyOpen(request.resource.data) || pointsToJourney(userId, date));
+      allow update: if owner(userId)
+        && (!journeyOpen(request.resource.data) || pointsToJourney(userId, date))
+        && (!journeyOpen(resource.data)
+          || journeyOpen(request.resource.data)
+          || journeyReleased(userId, date));
+      allow delete: if owner(userId)
+        && (!journeyOpen(resource.data) || journeyReleased(userId, date));
+    }
+    match /users/{userId}/journeyState/current {
+      allow read: if owner(userId);
+      allow create: if owner(userId) && validJourneyState(userId);
+      allow update: if owner(userId)
+        && validJourneyState(userId)
+        && previousJourneyReleased(userId);
+      allow delete: if owner(userId)
+        && (resource.data.date == null
+          || !existsAfter(journeyDayPath(userId, resource.data.date))
+          || !journeyOpen(getAfter(journeyDayPath(userId, resource.data.date)).data));
     }
     match /users/{userId}/expenses/{expenseId} {
       allow read, write: if owner(userId);

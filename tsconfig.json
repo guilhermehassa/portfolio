@@ -28,9 +28,7 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts",
-    ".next-motorista-qa/types/**/*.ts",
-    ".next-motorista-qa/dev/types/**/*.ts"
+    "**/*.mts"
   ],
   // `worker/` tem projeto e tsconfig proprios (runtime Cloudflare, nao DOM).
   "exclude": ["node_modules", "worker"]

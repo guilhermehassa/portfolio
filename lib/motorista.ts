@@ -1,3 +1,16 @@
+import { validateJourney } from "./motorista-journey";
+import { analyticExpenses, installmentsPreview, validateMaintenanceInput } from "./motorista-maintenance";
+
+export type JourneyPause = {
+  id: string;
+  startedAt: string;
+  endedAt: string | null;
+};
+export type Journey = {
+  startedAt: string;
+  endedAt: string | null;
+  pauses: JourneyPause[];
+};
 export type Day = {
   date: string;
   uberCents: number;
@@ -24,10 +37,36 @@ export type Day = {
     >
   >;
   shift?: "morning" | "afternoon" | "night" | "dawn" | "mixed" | "";
+  periods?: DayPeriod[];
   note?: string;
   odometerStart?: number | null;
   odometerEnd?: number | null;
+  journey?: Journey;
 };
+
+export const DAY_PERIODS = {
+  morning: "Manhã",
+  afternoon: "Tarde",
+  night: "Noite",
+  dawn: "Madrugada",
+} as const;
+export type DayPeriod = keyof typeof DAY_PERIODS;
+export function isDayPeriods(value: unknown): value is DayPeriod[] {
+  return Array.isArray(value) && value.length <= 4 && new Set(value).size === value.length &&
+    value.every((period) => typeof period === "string" && Object.hasOwn(DAY_PERIODS, period));
+}
+export function dayPeriods(day?: Pick<Day, "periods" | "shift">): DayPeriod[] {
+  const ordered = Object.keys(DAY_PERIODS) as DayPeriod[];
+  if (day?.periods !== undefined) return ordered.filter((period) => day.periods!.includes(period));
+  return ordered.filter((period) => period === day?.shift);
+}
+export function periodsFromInput(input: string, previous?: Pick<Day, "periods" | "shift">): DayPeriod[] {
+  if (input === "") return dayPeriods(previous);
+  let value: unknown;
+  try { value = JSON.parse(input); } catch { throw new Error("Selecione períodos válidos para o dia."); }
+  if (!isDayPeriods(value)) throw new Error("Selecione períodos válidos para o dia.");
+  return dayPeriods({ periods: value });
+}
 
 export type Gain = {
   id: string;
@@ -42,11 +81,12 @@ export type Expense = {
   categoryId: string;
   cents: number;
   note: string;
-  kind?: "expense" | "fuel";
+  kind?: "expense" | "fuel" | "maintenance";
   origin?: "legacy" | "user";
   scope?: ExpenseScope;
   fuel?: FuelDetails;
   plannedExpenseId?: string | null;
+  maintenance?: { startMonth: string; installments: number };
 };
 export type ExpenseScope =
   "operational" | "vehicle" | "personal" | "unclassified";
@@ -56,7 +96,6 @@ export type FuelDetails = {
   volume?: number | null;
   odometer?: number | null;
   tank?: "full" | "partial" | "unknown";
-  previousMissing?: boolean;
   incomplete?: boolean;
 };
 export type Category = {
@@ -92,9 +131,6 @@ export type CostProfile = {
   consumption?: number | null;
   priceCentsPerUnit?: number | null;
   workShare: number;
-  fixedMonthlyCents: number;
-  maintenanceCentsPerKm?: number;
-  wearCentsPerKm?: number;
 };
 export type Backup = {
   version: 4;
@@ -108,11 +144,17 @@ export type Backup = {
 };
 
 export type ImportEntry = { name: string; id: string; data: object };
+export function assertBackupEnvironment(input: unknown) {
+  if (input && typeof input === "object" &&
+    (input as { sourceEnvironment?: unknown }).sourceEnvironment === "local-test")
+    throw new Error("Este backup foi exportado do teste local e não pode ser importado nos dados reais.");
+}
 // Categorias entram primeiro. Cada compromisso e seus pagamentos importados
 // permanecem na mesma transação, mesmo se o arquivo ultrapassar um lote.
 export function importBatches(
   entries: ImportEntry[],
   limit = 150,
+  journeyDates: string[] = [],
 ): ImportEntry[][] {
   const batches: ImportEntry[][] = [];
   const categories = entries.filter((e) => e.name === "categories");
@@ -124,7 +166,9 @@ export function importBatches(
     const link =
       e.name === "expenses" ? (e.data as Expense).plannedExpenseId : null;
     const key =
-      e.name === "plannedExpenses"
+      e.name === "days" && journeyDates.includes(e.id)
+        ? "journey-state"
+        : e.name === "plannedExpenses"
         ? `plan:${e.id}`
         : link
           ? `plan:${link.slice(0, -12)}`
@@ -330,7 +374,8 @@ export function totals(days: Day[], expenses: Expense[]) {
   const ninetyNine = value.ninetyNine;
   const other = value.other;
   const totalGains = uber + ninetyNine + other;
-  const costs = expenses.reduce((sum, expense) => sum + expense.cents, 0);
+  // Mestres de manutenção não são gastos de um dia. Só suas cotas analíticas entram.
+  const costs = expenses.reduce((sum, expense) => sum + (expense.kind === "maintenance" ? 0 : expense.cents), 0);
   return {
     ...value,
     uber,
@@ -631,6 +676,7 @@ function validateExtensions(
           ["", "morning", "afternoon", "night", "dawn", "mixed"].includes(
             d.shift,
           )) &&
+        (d.periods === undefined || isDayPeriods(d.periods)) &&
         optionalNumber(d.odometerStart) &&
         optionalNumber(d.odometerEnd) &&
         (d.odometerStart == null ||
@@ -647,8 +693,11 @@ function validateExtensions(
     })
   )
     throw new Error(
-      "Há situações, odômetros ou preenchimentos diários inválidos.",
+      "Há situações, períodos, odômetros ou preenchimentos diários inválidos.",
     );
+  for (const day of days) validateJourney(day as Day);
+  if (days.filter((day) => (day as Day).journey?.endedAt === null).length > 1)
+    throw new Error("O backup possui mais de uma jornada aberta. Encerre uma delas antes de importar.");
   if (
     !categories.every((x) => {
       const c = x as Category;
@@ -688,9 +737,16 @@ function validateExtensions(
     !expenses.every((x) => {
       const e = x as Expense,
         f = e.fuel;
+      if (e.kind === "maintenance") {
+        if (!object(e.maintenance)) return false;
+        try {
+          validateMaintenanceInput({ ...e.maintenance, totalCents: e.cents });
+        } catch { return false; }
+        if (e.date !== `${e.maintenance.startMonth}-01`) return false;
+      }
       return (
         scope(e.scope) &&
-        (e.kind === undefined || ["expense", "fuel"].includes(e.kind)) &&
+        (e.kind === undefined || ["expense", "fuel", "maintenance"].includes(e.kind)) &&
         (e.plannedExpenseId == null || id(e.plannedExpenseId)) &&
         (f === undefined ||
           (object(f) &&
@@ -700,8 +756,6 @@ function validateExtensions(
             optionalNumber(f.odometer) &&
             (f.tank === undefined ||
               ["full", "partial", "unknown"].includes(f.tank)) &&
-            (f.previousMissing === undefined ||
-              typeof f.previousMissing === "boolean") &&
             (f.incomplete === undefined || typeof f.incomplete === "boolean")))
       );
     })
@@ -742,10 +796,7 @@ function validateExtensions(
         optionalNumber(x.consumption) &&
         optionalNumber(x.priceCentsPerUnit) &&
         nonnegative(x.workShare) &&
-        Number(x.workShare) <= 100 &&
-        safeInt(x.fixedMonthlyCents) &&
-        optionalNumber(x.maintenanceCentsPerKm) &&
-        optionalNumber(x.wearCentsPerKm)
+        Number(x.workShare) <= 100
       );
     }) ||
     new Set((profiles as CostProfile[]).map((p) => p.effectiveFrom)).size !==
@@ -797,6 +848,8 @@ export function exportCsv(
     cost: number;
     unit: string;
   }> = [],
+  goals: Goal[] = [],
+  reference = localDate(),
 ) {
   const names = new Map(
     categories.map((category) => [category.id, category.name]),
@@ -822,6 +875,7 @@ export function exportCsv(
       "combustivel_estimado_centavos",
     ],
   ];
+  const maintenanceCsv = new Map<number, string[]>();
   const known = (
     day: Day,
     field: keyof NonNullable<Day["filled"]>,
@@ -885,6 +939,27 @@ export function exportCsv(
     ]);
   }
   for (const expense of expenses) {
+    if (expense.kind === "maintenance" && expense.maintenance) {
+      const schedule = installmentsPreview({ ...expense.maintenance, totalCents: expense.cents });
+      maintenanceCsv.set(rows.length, [expense.id, String(expense.cents), expense.maintenance.startMonth,
+        String(expense.maintenance.installments), "", "", "", "", ""]);
+      rows.push(["manutencao_registro", "", names.get(expense.categoryId) ?? expense.categoryId,
+        expense.note, "", "", "", "", "", "registro_total", "", "", "", "", "", "", ""]);
+      schedule.forEach(({ month, cents }, index) => {
+        const bounds = monthBounds(month);
+        const allocation = analyticExpenses([expense], goals, bounds.from, bounds.to);
+        for (const entry of allocation) {
+          const future = entry.date > reference;
+          maintenanceCsv.set(rows.length, [expense.id, "", "", "", String(index + 1), month,
+            String(cents), entry.maintenanceAllocation!.allocation, future ? String(entry.cents) : ""]);
+          rows.push([future ? "manutencao_prevista" : "manutencao_custo", entry.date,
+            names.get(expense.categoryId) ?? expense.categoryId, expense.note,
+            future ? "" : String(entry.cents), "", "", "", "", future ? "previsto" : "reconhecido",
+            "", "", "", "", "", "", ""]);
+        }
+      });
+      continue;
+    }
     rows.push([
       "gasto",
       expense.date,
@@ -928,6 +1003,22 @@ export function exportCsv(
   return (
     "\uFEFF" +
     rows
+      .map((row, index) => {
+        if (index === 0) return [...row, "inicio_jornada", "fim_jornada", "pausas_json", "odometro_inicial_km", "odometro_final_km", "periodos", "periodos_json", "turno_legado",
+          "manutencao_id", "manutencao_total_centavos", "manutencao_mes_inicial", "manutencao_numero_parcelas", "manutencao_numero_parcela", "manutencao_mes_parcela", "manutencao_parcela_centavos", "manutencao_alocacao", "manutencao_prevista_centavos"];
+        const day = row[0] === "dados_do_dia" ? days.find((d) => d.date === row[1]) : undefined;
+        return [...row,
+          day?.journey?.startedAt ?? "",
+          day?.journey?.endedAt ?? "",
+          day?.journey ? JSON.stringify(day.journey.pauses) : "",
+          day?.odometerStart == null ? "" : String(day.odometerStart),
+          day?.odometerEnd == null ? "" : String(day.odometerEnd),
+          day ? dayPeriods(day).map((period) => DAY_PERIODS[period]).join(" + ") : "",
+          day?.periods === undefined ? "" : JSON.stringify(day.periods),
+          day?.shift ?? "",
+          ...(maintenanceCsv.get(index) ?? Array<string>(9).fill("")),
+        ];
+      })
       .map((row) =>
         row.map((value) => `"${value.replace(/"/g, '""')}"`).join(";"),
       )
