@@ -44,7 +44,7 @@ function form(path, name, initialProps) {
   const Component = moduleLoader(hooks)(path)[name];
   const render = () => { cursor = 0; tree = Component(props); };
   const nodes = (value) => Array.isArray(value) ? value.flatMap(nodes) : React.isValidElement(value)
-    ? [value, ...nodes(value.type.name === "MaintenanceFields" ? value.type(value.props) : value.props.children)] : [];
+    ? [value, ...nodes(["MaintenanceFields", "PaymentMethodField"].includes(value.type.name) ? value.type(value.props) : value.props.children)] : [];
   const text = (value) => Array.isArray(value) ? value.map(text).join("") : React.isValidElement(value)
     ? text(value.props.children) : value == null ? "" : String(value);
   function input(label) {
@@ -67,6 +67,8 @@ function form(path, name, initialProps) {
 }
 const load = moduleLoader();
 const { maintenanceExpenseFromInput, installmentsPreview } = load("lib/motorista-maintenance.ts");
+const { expensePaymentFields } = load("lib/motorista-payment-methods.ts");
+const paymentMethods = [{ id: "pix", name: "Pix", type: "other", active: true }];
 
 test("editar manutenção envia somente o mestre com ID e metadados intactos e substitui distribuição", async () => {
   const previous = { id: "m1", date: "2025-01-01", categoryId: "manutencao", kind: "maintenance", cents: 11515,
@@ -88,22 +90,47 @@ test("editar manutenção envia somente o mestre com ID e metadados intactos e s
   assert.equal(saved.expense.date, "2025-02-01"); assert.equal(saved.expense.note, "Revisão corrigida");
   assert.deepEqual(saved.expense.maintenance, { startMonth: "2025-02", installments: 2, historic: true });
   assert.deepEqual(saved.expense.extra, previous.extra); assert.deepEqual(previous, original);
+  assert.equal(app.value("Data da compra"), "");
+  assert.equal(Object.hasOwn(saved.expense, "purchaseDate"), false);
+  assert.equal(Object.hasOwn(saved.expense, "paymentMethodId"), false);
 });
 
 test("novo cadastro começa sem valor, aceita descrição vazia e mantém rascunho se confirmação falhar", async () => {
   let calls = 0, done = 0, saved;
   const app = form("components/motorista/motorista-maintenance.tsx", "MaintenanceEditor", {
-    saving: false, installmentsPreview, onCancel: () => done++,
-    onSave: async (draft, previous) => { calls++; assert.equal(previous, undefined); saved = maintenanceExpenseFromInput(draft, previous, "novo"); return false; },
+    saving: false, installmentsPreview, paymentMethods, onCancel: () => done++,
+    onSave: async (draft, previous) => { calls++; assert.equal(previous, undefined);
+      saved = { ...maintenanceExpenseFromInput(draft, previous, "novo"), ...expensePaymentFields(draft.paymentMethodId ?? "", paymentMethods, previous) }; return false; },
   });
   assert.equal(app.value("Custo total"), ""); assert.equal(app.value("Número de parcelas"), "1");
+  assert.equal(app.value("Data da compra"), load("lib/motorista.ts").localDate());
   await app.save(); assert.match(app.error(), /custo total/); assert.equal(calls, 0);
   app.change("Custo total", "R$ 17,05");
   app.change("Número de parcelas", "0"); await app.save(); assert.equal(calls, 0);
   app.change("Número de parcelas", "1"); app.change("Mês inicial", "2025-01"); await app.save();
+  assert.equal(calls, 0); assert.match(app.error(), /forma de pagamento/);
+  app.change("Forma de pagamento", "pix"); app.change("Data da compra", "2025-01-18"); await app.save();
   assert.equal(calls, 1); assert.equal(done, 0); assert.equal(saved.cents, 1705);
   assert.equal(saved.note, ""); assert.equal(app.value("Descrição"), ""); assert.equal(app.value("Custo total"), "R$ 17,05");
+  assert.equal(saved.purchaseDate, "2025-01-18"); assert.equal(saved.paymentMethodId, "pix");
   app.cancel(); assert.equal(calls, 1); assert.equal(done, 1);
+});
+
+test("manutenção histórica só recebe data da compra após edição explícita e mantém rateio", async () => {
+  const previous = { id: "m1", date: "2025-01-01", categoryId: "manutencao", kind: "maintenance", cents: 10000,
+    maintenance: { startMonth: "2025-01", installments: 2 } };
+  let saved;
+  const app = form("components/motorista/motorista-maintenance.tsx", "MaintenanceEditor", {
+    initial: previous, saving: false, installmentsPreview, paymentMethods, onCancel() {},
+    onSave: async (draft, snapshot) => { saved = { ...maintenanceExpenseFromInput(draft, snapshot),
+      ...expensePaymentFields(draft.paymentMethodId ?? "", paymentMethods, snapshot) }; return true; },
+  });
+  assert.equal(app.value("Data da compra"), "");
+  app.change("Data da compra", "2024-12-20"); app.change("Forma de pagamento", "pix"); await app.save();
+  assert.equal(saved.purchaseDate, "2024-12-20"); assert.equal(saved.date, "2025-01-01");
+  assert.deepEqual(saved.maintenance, previous.maintenance); assert.equal(saved.paymentMethodId, "pix");
+  assert.equal(Object.hasOwn(previous, "purchaseDate"), false);
+  app.change("Data da compra", ""); await app.save(); assert.match(app.error(), /data da compra/);
 });
 
 test("perfil editado preserva estimativas antigas invisíveis e novo perfil não as cria", async () => {

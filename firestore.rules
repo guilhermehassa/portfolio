@@ -48,7 +48,54 @@ service cloud.firestore {
       return date == null
         || date == request.resource.data.date
         || !existsAfter(journeyDayPath(userId, date))
-        || !journeyOpen(getAfter(journeyDayPath(userId, date)).data);
+          || !journeyOpen(getAfter(journeyDayPath(userId, date)).data);
+    }
+
+    function paymentMethodPath(userId, methodId) {
+      return /databases/$(database)/documents/users/$(userId)/paymentMethods/$(methodId);
+    }
+
+    function validCardDay(day) {
+      return day is int && day >= 1 && day <= 31;
+    }
+
+    function validPaymentTerms(data) {
+      return data is map
+        && data.keys().hasAll(['type'])
+        && (data.type == 'other'
+          ? data.get('closingDay', null) == null && data.get('dueDay', null) == null
+          : data.type == 'credit'
+            && validCardDay(data.get('closingDay', null))
+            && validCardDay(data.get('dueDay', null)));
+    }
+
+    function validPaymentMethod(data, methodId) {
+      return validPaymentTerms(data)
+        && data.keys().hasAll(['id', 'name', 'active'])
+        && data.id == methodId
+        && methodId.matches('^[a-zA-Z0-9_-]{1,128}$')
+        && data.name is string
+        && data.name.size() >= 1 && data.name.size() <= 80
+        && data.name.matches('.*\\S.*')
+        && data.active is bool;
+    }
+
+    function validExpensePayment(userId, data) {
+      let methodId = data.get('paymentMethodId', null);
+      let terms = data.get('paymentMethodSnapshot', null);
+      // Ausência continua válida para histórico e restauração de backups anteriores.
+      // Formas inativas continuam referenciáveis ao restaurar compras históricas.
+      return (methodId == null && terms == null)
+        || (methodId is string
+          && methodId.matches('^[a-zA-Z0-9_-]{1,128}$')
+          && validPaymentTerms(terms)
+          && validPaymentMethod(getAfter(paymentMethodPath(userId, methodId)).data, methodId));
+    }
+
+    function validPurchaseDate(data) {
+      return !data.keys().hasAny(['purchaseDate'])
+        || (data.purchaseDate is string
+          && data.purchaseDate.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'));
     }
 
     match /users/{userId}/days/{date} {
@@ -75,7 +122,19 @@ service cloud.firestore {
           || !journeyOpen(getAfter(journeyDayPath(userId, resource.data.date)).data));
     }
     match /users/{userId}/expenses/{expenseId} {
-      allow read, write: if owner(userId);
+      allow read, delete: if owner(userId);
+      allow create: if owner(userId)
+        && validExpensePayment(userId, request.resource.data)
+        && validPurchaseDate(request.resource.data);
+      allow update: if owner(userId)
+        && validExpensePayment(userId, request.resource.data)
+        && validPurchaseDate(request.resource.data);
+    }
+    match /users/{userId}/paymentMethods/{methodId} {
+      allow read: if owner(userId);
+      allow create, update: if owner(userId)
+        && validPaymentMethod(request.resource.data, methodId);
+      allow delete: if false;
     }
     match /users/{userId}/categories/{categoryId} {
       allow read, write: if owner(userId);

@@ -1,7 +1,8 @@
 "use client";
 import { useState, type FormEvent } from "react";
-import { civilDate, isMonth, localDate, money, parseCents, type Expense } from "@/lib/motorista";
-import { FormError, MoneyField } from "./motorista-forms";
+import { civilDate, isDate, isMonth, localDate, money, parseCents, type Expense, type PaymentMethod } from "@/lib/motorista";
+import { expensePaymentFields } from "@/lib/motorista-payment-methods";
+import { FormError, MoneyField, PaymentMethodField } from "./motorista-forms";
 
 export type MaintenanceDraft = {
   categoryId: string;
@@ -9,10 +10,14 @@ export type MaintenanceDraft = {
   startMonth: string;
   installments: number;
   note: string;
+  purchaseDate?: string;
+  paymentMethodId?: string | null;
+  paymentMethodSnapshot?: Expense["paymentMethodSnapshot"];
 };
 
-export function MaintenanceEditor({ initial, saving, onSave, onCancel, installmentsPreview }: {
+export function MaintenanceEditor({ initial, paymentMethods = [], saving, onSave, onCancel, installmentsPreview }: {
   initial?: Expense;
+  paymentMethods?: PaymentMethod[];
   saving: boolean;
   onSave: (draft: MaintenanceDraft, previous?: Expense) => Promise<boolean>;
   onCancel: () => void;
@@ -23,6 +28,9 @@ export function MaintenanceEditor({ initial, saving, onSave, onCancel, installme
   const [value, setValue] = useState(initial?.cents == null ? "" : money(initial.cents));
   const [startMonth, setStartMonth] = useState(initial?.maintenance?.startMonth ?? localDate().slice(0, 7));
   const [installments, setInstallments] = useState(String(initial?.maintenance?.installments ?? 1));
+  const [purchaseDate, setPurchaseDate] = useState(initial ? initial.purchaseDate ?? "" : localDate());
+  const [purchaseDateChanged, setPurchaseDateChanged] = useState(false);
+  const [paymentMethodId, setPaymentMethodId] = useState(initial?.paymentMethodId ?? "");
   const [error, setError] = useState("");
   const totalCents = parseCents(value), count = Number(installments);
   let preview: Array<{ month: string; cents: number }> = [];
@@ -36,18 +44,27 @@ export function MaintenanceEditor({ initial, saving, onSave, onCancel, installme
     try {
       if (!Number.isSafeInteger(totalCents) || totalCents <= 0) throw new Error("Informe um custo total positivo válido.");
       if (!isMonth(startMonth) || !Number.isSafeInteger(count) || count < 1) throw new Error("Informe o mês inicial e um número inteiro de parcelas.");
+      const savePurchaseDate = !previous || previous.purchaseDate != null || purchaseDateChanged;
+      if (savePurchaseDate && !isDate(purchaseDate)) throw new Error("Informe uma data da compra válida.");
       if (await onSave({ categoryId: previous?.categoryId ?? "manutencao", note,
-        totalCents, startMonth, installments: count }, previous)) onCancel();
+        totalCents, startMonth, installments: count,
+        ...(savePurchaseDate ? { purchaseDate } : {}),
+        ...expensePaymentFields(paymentMethodId, paymentMethods, previous) }, previous)) onCancel();
     } catch (error) { setError(error instanceof Error ? error.message : "Revise os dados da manutenção."); }
   }
   return <form className="motorista-form" onSubmit={submit}>
     <FormError>{error}</FormError>
+    <label>Data da compra
+      <input type="date" value={purchaseDate} required={!previous || previous.purchaseDate != null || purchaseDateChanged}
+        onChange={(event) => { setPurchaseDate(event.target.value); setPurchaseDateChanged(true); }} />
+    </label>
     <label>Descrição
       <textarea rows={2} maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} />
     </label>
     <label>Custo total (R$)
       <MoneyField value={value} onChange={setValue} required />
     </label>
+    <PaymentMethodField value={paymentMethodId} paymentMethods={paymentMethods} previous={previous} onChange={setPaymentMethodId} />
     <MaintenanceFields startMonth={startMonth} installments={installments} preview={preview}
       onStartMonthChange={setStartMonth} onInstallmentsChange={setInstallments} />
     <div className="motorista-actions motorista-dialog-actions">

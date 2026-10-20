@@ -1,7 +1,8 @@
 import {
-  civilDate, isDate, isMonth, monthBounds, safeInt, totals,
+  civilDate, isDate, isMonth, localDate, monthBounds, safeInt, totals,
   type Day, type Expense, type Goal,
 } from "./motorista";
+import { validatePaymentMethodSnapshot } from "./motorista-payment-methods";
 
 export type MaintenanceInput = {
   categoryId: string;
@@ -9,6 +10,9 @@ export type MaintenanceInput = {
   startMonth: string;
   installments: number;
   note: string;
+  purchaseDate?: string;
+  paymentMethodId?: string | null;
+  paymentMethodSnapshot?: Expense["paymentMethodSnapshot"];
 };
 export type InstallmentInput = Pick<MaintenanceInput, "totalCents" | "startMonth" | "installments">;
 const idValid = (id: string) => /^[a-zA-Z0-9_-]{1,128}$/.test(id);
@@ -50,6 +54,22 @@ export function maintenanceExpenseFromInput(input: MaintenanceInput, previous?: 
     throw new Error("Revise a identificação e a categoria da manutenção.");
   if (typeof input.note !== "string" || input.note.length > 500)
     throw new Error("A descrição deve ter até 500 caracteres.");
+  const purchaseDate = input.purchaseDate ?? previous?.purchaseDate ?? (previous ? undefined : localDate());
+  if (purchaseDate !== undefined && !isDate(purchaseDate))
+    throw new Error("Selecione uma data de compra válida para a manutenção.");
+  const paymentFields: Pick<Expense, "paymentMethodId" | "paymentMethodSnapshot"> = {
+    ...(Object.hasOwn(input, "paymentMethodId") ? { paymentMethodId: input.paymentMethodId } : {}),
+    ...(Object.hasOwn(input, "paymentMethodSnapshot") ? { paymentMethodSnapshot: input.paymentMethodSnapshot } : {}),
+  };
+  const methodId = Object.hasOwn(paymentFields, "paymentMethodId") ? paymentFields.paymentMethodId : previous?.paymentMethodId;
+  const snapshot = Object.hasOwn(paymentFields, "paymentMethodSnapshot") ? paymentFields.paymentMethodSnapshot : previous?.paymentMethodSnapshot;
+  if (previous?.paymentMethodId && !methodId)
+    throw new Error("Selecione uma forma de pagamento para a manutenção.");
+  if (methodId != null) {
+    if (!idValid(methodId) || (methodId !== previous?.paymentMethodId && !Object.hasOwn(paymentFields, "paymentMethodSnapshot")))
+      throw new Error("Revise a forma de pagamento da manutenção.");
+    validatePaymentMethodSnapshot(snapshot);
+  } else if (snapshot != null) throw new Error("A manutenção tem termos de pagamento sem uma forma correspondente.");
   return {
     ...previous,
     id: expenseId,
@@ -60,6 +80,8 @@ export function maintenanceExpenseFromInput(input: MaintenanceInput, previous?: 
     cents: input.totalCents,
     note: input.note,
     origin: previous?.origin ?? "user",
+    ...(purchaseDate === undefined ? {} : { purchaseDate }),
+    ...paymentFields,
     maintenance: {
       ...previous?.maintenance,
       startMonth: input.startMonth,

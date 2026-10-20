@@ -29,8 +29,10 @@ import {
   type Day,
   type DayPeriod,
   type Expense,
+  type PaymentMethod,
   type JourneyPause,
 } from "@/lib/motorista";
+import { expensePaymentFields } from "@/lib/motorista-payment-methods";
 
 export function MoneyField({
   value,
@@ -57,6 +59,24 @@ export function FormError({ children }: { children: ReactNode }) {
       {children}
     </p>
   ) : null;
+}
+
+export function PaymentMethodField({ value, paymentMethods, previous, onChange }: {
+  value: string;
+  paymentMethods: PaymentMethod[];
+  previous?: Expense;
+  onChange: (value: string) => void;
+}) {
+  const required = !previous || Boolean(previous.paymentMethodId);
+  const available = paymentMethods.filter((method) => method.active || method.id === previous?.paymentMethodId);
+  return <label>
+    Forma de pagamento
+    <select value={value} required={required} onChange={(event) => onChange(event.target.value)}>
+      <option value="" disabled={required}>{required ? "Selecione" : ""}</option>
+      {available.map((method) => <option key={method.id} value={method.id}>{method.name}</option>)}
+    </select>
+    {required && available.length === 0 && <small>Cadastre uma forma de pagamento em Definições.</small>}
+  </label>;
 }
 
 export function PeriodsEditor({ value, onChange }: {
@@ -503,6 +523,7 @@ export function ExpenseEditor({
   initial,
   categories,
   expenses,
+  paymentMethods = [],
   saving,
   onSave,
   onCancel,
@@ -512,6 +533,7 @@ export function ExpenseEditor({
   initial: Partial<Expense> & { date: string };
   categories: Category[];
   expenses: Expense[];
+  paymentMethods?: PaymentMethod[];
   saving: boolean;
   onSave: (expense: Expense, previous?: Expense) => Promise<boolean>;
   onCancel: () => void;
@@ -537,11 +559,13 @@ export function ExpenseEditor({
   );
   const [tank, setTank] = useState(initial.fuel?.tank ?? (previous ? "unknown" : "partial"));
   const [tankChanged, setTankChanged] = useState(false);
+  const [paymentMethodId, setPaymentMethodId] = useState(initial.paymentMethodId ?? "");
   const [error, setError] = useState("");
   const nullable = (text: string) => (text.trim() ? parseDecimal(text) : null);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
+    if (saving) return;
     try {
       const cents = parseCents(value),
         v = nullable(volume);
@@ -567,6 +591,7 @@ export function ExpenseEditor({
         cents,
         note,
         kind,
+        ...expensePaymentFields(paymentMethodId, paymentMethods, previous),
       };
       if (kind === "fuel") {
         const effectiveTank = !previous || tankChanged ? tank : previous.fuel?.tank;
@@ -625,6 +650,7 @@ export function ExpenseEditor({
           <MoneyField value={value} onChange={setValue} required />
         </label>
       </div>
+      <PaymentMethodField value={paymentMethodId} paymentMethods={paymentMethods} previous={previous} onChange={setPaymentMethodId} />
       <label>
         Tipo
         <select

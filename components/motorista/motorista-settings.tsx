@@ -21,8 +21,10 @@ import {
   type Expense,
   type Goal,
   type PlannedExpense,
+  type PaymentMethod,
 } from "@/lib/motorista";
 import { FormError, MoneyField } from "./motorista-forms";
+import { PaymentMethodSettings } from "./motorista-payment-methods";
 
 export type SaveDocument = (
   collection: string,
@@ -37,6 +39,7 @@ type Props = {
   goals: Goal[];
   profiles: CostProfile[];
   plans: PlannedExpense[];
+  paymentMethods: PaymentMethod[];
   saving: boolean;
   save: SaveDocument;
 };
@@ -53,6 +56,7 @@ export default function MotoristaSettings(props: Props) {
         <PlanSettings {...props} />
       </div>
       <CategorySettings {...props} />
+      <PaymentMethodSettings paymentMethods={props.paymentMethods} saving={props.saving} save={props.save} />
     </section>
   );
 }

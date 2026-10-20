@@ -2,6 +2,8 @@
 
 ## Objetivo e escopo
 
+O acréscimo de formas de pagamento e da consulta de gastos por vencimento de **13/10/2026** possui acompanhamento próprio em [PLANO-FORMAS-PAGAMENTO-MOTORISTA.md](PLANO-FORMAS-PAGAMENTO-MOTORISTA.md). A implementação local está concluída; publicação das novas regras Firebase e validação visual do usuário permanecem pendentes. As etapas abaixo preservam o histórico da evolução anterior.
+
 Reorganizar a aplicação para os três momentos reais de uso do proprietário:
 
 1. Durante o trabalho, registrar rapidamente um gasto ou abastecimento.

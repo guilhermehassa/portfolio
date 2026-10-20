@@ -215,7 +215,7 @@ test("provisões retiradas aceitam round-trip como JSON desconhecido e não têm
     fixedMonthlyCents: { foreign: [0, null] }, wearCentsPerKm: "old", maintenanceCentsPerKm: false };
   const backup = { version: 4, exportedAt: "2026-10-08T12:00:00.000Z", days: [], expenses: [], categories: [],
     goals: [], plannedExpenses: [], costProfiles: [profile] };
-  assert.deepEqual(base.validateBackup(JSON.parse(JSON.stringify(backup))), backup);
+  assert.deepEqual(base.validateBackup(JSON.parse(JSON.stringify(backup))), { ...backup, version: 5, paymentMethods: [] });
   const snapshot = JSON.stringify(profile);
   const result = calc.estimateDay(day("2026-10-05", { uberCents: 1000, km: 10 }), [], [], [profile]);
   assert.equal(result.cost, 100);

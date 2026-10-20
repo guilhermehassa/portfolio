@@ -197,7 +197,7 @@ test("backup v4 e importações preservam mestre e provisão histórica como JSO
   const expense = make({ totalCents: 1000 });
   const input = backup([expense], { costProfiles: [profile], foreign: "kept" });
   const result = base.validateBackup(JSON.parse(JSON.stringify(input)));
-  assert.deepEqual(result, input);
+  assert.deepEqual(result, { ...input, version: 5, paymentMethods: [] });
   const entries = [{ name: "categories", id: category.id, data: category }, { name: "expenses", id: expense.id, data: expense }];
   assert.deepEqual(base.importBatches(entries).flat(), entries);
   for (const expense of [{ ...make(), maintenance: undefined }, { ...make(), maintenance: { startMonth: "2026-10", installments: 0 } },
@@ -257,6 +257,8 @@ function expenseSaver(initial = {}) {
   const path = (name, id) => `${name}/${id}`;
   const bindings = {
     path, emptyDay: base.emptyDay, categories: [category], getMotoristaDb: () => "isolated-memory",
+    expensePaymentFields: load("motorista-payment-methods").expensePaymentFields,
+    paymentMethodsReady: true,
     plannedOccurrences: calc.plannedOccurrences,
     withSave: async (action) => { await action(); return true; },
     runTransaction: async (_db, action) => {
@@ -283,24 +285,25 @@ function expenseSaver(initial = {}) {
 }
 
 test("confirmação transacional salva só mestre/categoria e edição conserva histórico e pagamento vinculado", async () => {
-  const fresh = expenseSaver();
-  const expense = make({ totalCents: 101, installments: 3 });
+  const method = { id: "pix", name: "Pix", type: "other", active: true };
+  const fresh = expenseSaver({ "paymentMethods/pix": method });
+  const expense = { ...make({ totalCents: 101, installments: 3 }), paymentMethodId: "pix", paymentMethodSnapshot: { type: "other" } };
   assert.equal(await fresh.save(expense), true);
   assert.equal(fresh.commits(), 1);
-  assert.deepEqual([...fresh.records.keys()].sort(), ["categories/manutencao", "expenses/isolated"]);
+  assert.deepEqual([...fresh.records.keys()].sort(), ["categories/manutencao", "expenses/isolated", "paymentMethods/pix"]);
   assert.deepEqual(fresh.records.get("expenses/isolated"), expense);
   const key = "p--2026-10-05";
   const previous = { ...expense, foreign: { a: [0, true, null] }, plannedExpenseId: key,
     fuel: { odometer: 99, previousMissing: true }, maintenance: { ...expense.maintenance, foreign: "kept" } };
   const plan = { id: "p", date: "2026-10-05", categoryId: category.id, cents: 101, note: "old", payments: { [key]: previous.id }, foreign: "kept" };
-  const editing = expenseSaver({ "expenses/isolated": previous, "categories/manutencao": category, "plannedExpenses/p": plan });
+  const editing = expenseSaver({ "expenses/isolated": previous, "categories/manutencao": category, "plannedExpenses/p": plan, "paymentMethods/pix": method });
   const next = make({ totalCents: 111, startMonth: "2026-11", installments: 2 }, previous);
   await editing.save(next, previous);
   assert.equal(editing.commits(), 1);
   assert.deepEqual(editing.records.get("expenses/isolated"), next);
   assert.deepEqual(editing.records.get("plannedExpenses/p"), plan);
-  assert.equal(editing.records.size, 3);
-  assert.deepEqual(base.validateBackup(backup([next], { plannedExpenses: [plan] })).expenses, [next]);
+  assert.equal(editing.records.size, 4);
+  assert.deepEqual(base.validateBackup(backup([next], { version: 5, paymentMethods: [method], plannedExpenses: [plan] })).expenses, [next]);
 });
 
 test("conflito de snapshot, remoção ou vínculo recusa manutenção sem gravar partes", async () => {
@@ -321,4 +324,23 @@ test("conflito de snapshot, remoção ou vínculo recusa manutenção sem gravar
   await assert.rejects(executor.save(make({ totalCents: 321 }, linked), linked), /vínculo anterior mudou/);
   assert.equal(executor.commits(), 0);
   assert.deepEqual([...executor.records], before);
+});
+
+test("transação do gasto revalida forma ativa e captura termos atuais sem reclassificar compras anteriores", async () => {
+  const card = { id: "card", name: "Cartão", type: "credit", active: true, closingDay: 20, dueDay: 27 };
+  const expense = { ...make(), paymentMethodId: card.id, paymentMethodSnapshot: { type: "credit", closingDay: 10, dueDay: 17 } };
+  const fresh = expenseSaver({ "paymentMethods/card": card });
+  await fresh.save(expense);
+  const saved = fresh.records.get("expenses/isolated");
+  assert.deepEqual(saved.paymentMethodSnapshot, { type: "credit", closingDay: 20, dueDay: 27 });
+  const disabled = { ...card, active: false, closingDay: 21, dueDay: 28 };
+  const editing = expenseSaver({ "paymentMethods/card": disabled, "categories/manutencao": category, "expenses/isolated": saved });
+  await editing.save({ ...saved, note: "Correção" }, saved);
+  assert.deepEqual(editing.records.get("expenses/isolated").paymentMethodSnapshot, saved.paymentMethodSnapshot);
+  for (const methods of [{ "paymentMethods/card": disabled }, {}]) {
+    const blocked = expenseSaver(methods), original = structuredClone([...blocked.records]);
+    await assert.rejects(blocked.save(expense), /ativa|não existe/);
+    assert.equal(blocked.commits(), 0);
+    assert.deepEqual([...blocked.records], original);
+  }
 });

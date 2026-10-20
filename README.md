@@ -79,8 +79,19 @@ permanecem como metadados inertes. Estimativas de desgaste e custos fixos també
 com seus campos antigos preservados e sem efeito. Registros antigos
 não são convertidos por categoria ou descrição e nenhuma manutenção de exemplo é cadastrada.
 Definições reúne metas por mês, calendário, compromissos
-e premissas históricas do veículo. O backup JSON v4 inclui as seis coleções e preserva IDs,
-campos históricos e vínculos; continua aceitando versões 1, 2 e 3.
+e premissas históricas do veículo. Agora também permite cadastrar formas de pagamento
+do tipo Outro ou Cartão de Crédito, com fechamento e vencimento para cartões. Novos gastos,
+abastecimentos e manutenções exigem uma forma; registros antigos continuam em branco sem aviso.
+Manutenção ganha data da compra, inicialmente hoje e editável, sem mudar o rateio.
+Relatórios conserva todo o conteúdo atual em Geral e acrescenta Gastos, com filtros por
+vencimento (inclusive futuro), forma e categoria. A consulta usa as compras que compõem a
+fatura, incluindo as de meses anteriores, sem controle de quitação ou mudança nos cálculos.
+O backup JSON v5 inclui as sete coleções e preserva IDs, campos históricos, vínculos e termos
+de pagamento; continua aceitando versões 1, 2, 3 e 4. As novas regras em `firestore.rules`
+foram compiladas e publicadas no Firebase `motorista-17946`, banco `(default)`, em
+13/10/2026 às 16:34:03 (São Paulo), com releitura do texto publicado e sem alterar documentos.
+A validação visual permanece com o usuário. O acompanhamento está
+em [PLANO-FORMAS-PAGAMENTO-MOTORISTA.md](PLANO-FORMAS-PAGAMENTO-MOTORISTA.md).
 
 No celular, abra `https://hassa.dev.br/motorista` e use **Instalar aplicativo** no menu do
 Chrome para criar um atalho que abre em tela própria. No iPhone, use **Compartilhar** →

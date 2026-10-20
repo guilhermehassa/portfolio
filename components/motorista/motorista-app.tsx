@@ -50,6 +50,7 @@ import {
   type Expense,
   type Goal,
   type PlannedExpense,
+  type PaymentMethod,
 } from "@/lib/motorista";
 import {
   dayStatus,
@@ -74,6 +75,8 @@ import { clearRetiredMotoristaStorage } from "@/lib/motorista-browser-cleanup";
 import { weeklyGoalPlanning } from "@/lib/motorista-weekly-goal";
 import { installmentsPreview, maintenanceExpenseFromInput, maintenanceRows, periodTotals } from "@/lib/motorista-maintenance";
 import { MaintenanceEditor, maintenanceMonthLabel, type MaintenanceDraft } from "./motorista-maintenance";
+import MotoristaExpenseReports from "./motorista-expense-reports";
+import { expensePaymentFields, validatePaymentMethod } from "@/lib/motorista-payment-methods";
 
 type Tab =
   "resumo" | "ganhos" | "gastos" | "relatorios" | "definicoes" | "backup";
@@ -146,15 +149,19 @@ export default function MotoristaApp() {
     [savedCategories, setCategories] = useState<Category[]>([]),
     [goals, setGoals] = useState<Goal[]>([]),
     [plans, setPlans] = useState<PlannedExpense[]>([]),
-    [profiles, setProfiles] = useState<CostProfile[]>([]);
+    [profiles, setProfiles] = useState<CostProfile[]>([]),
+    [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [loaded, setLoaded] = useState<Record<string, boolean>>({}),
     [loadError, setLoadError] = useState(""),
+    [paymentMethodsError, setPaymentMethodsError] = useState(""),
     [saving, setSaving] = useState(false);
   const { toast, setNotice } = useMotoristaToast();
   const saveLock = useRef(false);
   const [gainsPeriod, setGainsPeriod] = useState(initialPeriod),
     [expensesPeriod, setExpensesPeriod] = useState(initialPeriod),
     [reportsPeriod, setReportsPeriod] = useState(initialPeriod);
+  const [reportsTab, setReportsTab] = useState<"general" | "expenses">("general");
+  const [invoicePeriod, setInvoicePeriod] = useState<PeriodSelection>(() => ({ ...initialPeriod(), filter: "month" }));
   const [homeWeek, setHomeWeek] = useState(() => isoWeek(today));
   const [modal, setModal] = useState<"day" | "expense" | "maintenance" | "journey" | null>(null),
     [dayDate, setDayDate] = useState(localDate);
@@ -179,8 +186,10 @@ export default function MotoristaApp() {
     "goals",
     "plannedExpenses",
     "costProfiles",
+    "paymentMethods",
   ];
-  const allLoaded = names.every((name) => loaded[name]);
+  const allLoaded = names.filter((name) => name !== "paymentMethods").every((name) => loaded[name]);
+  const paymentMethodsReady = !!loaded.paymentMethods && !paymentMethodsError;
   const categories = useMemo(
     () =>
       [
@@ -206,7 +215,8 @@ export default function MotoristaApp() {
   const activeState = journeyState(activeDay);
   const gainsBounds = selectedBounds(gainsPeriod),
     expenseBounds = selectedBounds(expensesPeriod),
-    reportBounds = selectedBounds(reportsPeriod);
+    reportBounds = selectedBounds(reportsPeriod),
+    invoiceBounds = selectedBounds(invoicePeriod);
   const listedDays = validBounds(gainsBounds)
     ? [...days]
         .filter(
@@ -251,6 +261,8 @@ export default function MotoristaApp() {
       (current) => {
         setLoaded({});
         setLoadError("");
+        setPaymentMethodsError("");
+        setPaymentMethods([]);
         setModal(null);
         setBackup(null);
         setImportError("");
@@ -269,6 +281,7 @@ export default function MotoristaApp() {
       onSnapshot(
         collection(getMotoristaDb(), "users", user.uid, name),
         (snapshot) => {
+          if (name === "paymentMethods") setPaymentMethodsError("");
           setter(
             snapshot.docs.map(
               (item) => normalize(name, item.id, item.data()) as T,
@@ -276,10 +289,11 @@ export default function MotoristaApp() {
           );
           setLoaded((current) => ({ ...current, [name]: true }));
         },
-        (error) =>
-          setLoadError(
-            "Falha ao carregar " + name + ": " + errorMessage(error),
-          ),
+        (error) => {
+          if (name === "paymentMethods") {
+            setPaymentMethodsError("Não foi possível carregar as formas de pagamento: " + errorMessage(error));
+          } else setLoadError("Falha ao carregar " + name + ": " + errorMessage(error));
+        },
       );
     const stops = [
       listen<Day>("days", setDays),
@@ -288,6 +302,7 @@ export default function MotoristaApp() {
       listen<Goal>("goals", setGoals),
       listen<PlannedExpense>("plannedExpenses", setPlans),
       listen<CostProfile>("costProfiles", setProfiles),
+      listen<PaymentMethod>("paymentMethods", setPaymentMethods),
     ];
     return () => stops.forEach((stop) => stop());
   }, [authorized, user]);
@@ -323,6 +338,9 @@ export default function MotoristaApp() {
   }
   const saveDocument: SaveDocument = async (name, id, data, previous) =>
     withSave(async () => {
+      if (name === "paymentMethods" && !paymentMethodsReady)
+        throw new Error("As formas de pagamento ainda não estão disponíveis. Tente carregar novamente.");
+      if (name === "paymentMethods") validatePaymentMethod(data as PaymentMethod);
       await runTransaction(getMotoristaDb(), async (transaction) => {
         const ref = path(name, id),
           snapshot = await transaction.get(ref);
@@ -400,7 +418,10 @@ export default function MotoristaApp() {
     setModal("maintenance");
   };
   const saveMaintenance = (draft: MaintenanceDraft, previous?: Expense) =>
-    saveExpense(maintenanceExpenseFromInput(draft, previous, maintenanceNewId), previous);
+    saveExpense({
+      ...maintenanceExpenseFromInput(draft, previous, maintenanceNewId),
+      ...expensePaymentFields(draft.paymentMethodId ?? "", paymentMethods, previous),
+    }, previous);
   async function saveExpense(expense: Expense, previous?: Expense) {
     return withSave(async () => {
       await runTransaction(getMotoristaDb(), async (tx) => {
@@ -415,6 +436,16 @@ export default function MotoristaApp() {
           throw new Error("Gasto alterado em outra sessão. Reabra a edição.");
         if (previous && !current.exists())
           throw new Error("Gasto removido em outra sessão.");
+        // Revalida a forma dentro da transação: outra sessão pode desativá-la
+        // depois da seleção. Os termos já vinculados ao gasto ficam preservados.
+        const methodId = expense.paymentMethodId;
+        if (methodId && !paymentMethodsReady)
+          throw new Error("As formas de pagamento ainda não estão disponíveis. Tente carregar novamente.");
+        const methodSnapshot = methodId ? await tx.get(path("paymentMethods", methodId)) : null;
+        const currentMethods = methodSnapshot?.exists()
+          ? [{ ...methodSnapshot.data(), id: methodId! } as PaymentMethod]
+          : [];
+        const paymentFields = expensePaymentFields(methodId ?? "", currentMethods, previous);
         const oldKey = previous?.plannedExpenseId,
           newKey = expense.plannedExpenseId;
         const planId = (key: string) => key.slice(0, -12);
@@ -467,7 +498,7 @@ export default function MotoristaApp() {
             categoryRef,
             categories.find((c) => c.id === expense.categoryId)!,
           );
-        tx.set(ref, expense, { merge: true });
+        tx.set(ref, { ...expense, ...paymentFields }, { merge: true });
       });
     }, "Gasto salvo e previsão reconciliada.");
   }
@@ -502,8 +533,9 @@ export default function MotoristaApp() {
     }, "Gasto excluído. A previsão vinculada voltou a ficar pendente.");
   }
   function downloadJson() {
+    if (!paymentMethodsReady) throw new Error("Aguarde o carregamento das formas de pagamento para exportar um backup completo.");
     const payload: Backup = {
-      version: 4,
+      version: 5,
       exportedAt: new Date().toISOString(),
       days,
       expenses,
@@ -511,6 +543,7 @@ export default function MotoristaApp() {
       goals,
       plannedExpenses: plans,
       costProfiles: profiles,
+      paymentMethods,
     };
     validateBackup(payload);
     fileDownload(
@@ -539,6 +572,7 @@ export default function MotoristaApp() {
     goals,
     plannedExpenses: plans,
     costProfiles: profiles,
+    paymentMethods,
   };
   const itemId = (name: string, item: object) =>
     name === "days"
@@ -580,6 +614,7 @@ export default function MotoristaApp() {
     )
       return;
     await withSave(async () => {
+      if (!paymentMethodsReady) throw new Error("Aguarde o carregamento das formas de pagamento antes de importar.");
       // Valida também o estado combinado: preservar por ID não pode quebrar vínculos.
       const combined = Object.fromEntries(
         Object.entries(currentLists).map(([name, current]) => {
@@ -593,7 +628,7 @@ export default function MotoristaApp() {
         }),
       );
       validateBackup({
-        version: 4,
+        version: 5,
         exportedAt: new Date().toISOString(),
         ...combined,
         categories: [
@@ -756,6 +791,12 @@ export default function MotoristaApp() {
           )}
         </nav>
         {!modal && <MotoristaToast toast={toast} />}
+        {paymentMethodsError && (tab === "definicoes" || tab === "gastos" || tab === "backup" || (tab === "relatorios" && reportsTab === "expenses")) && (
+          <div className="motorista-card">
+            <p className="motorista-alert" role="alert">{paymentMethodsError}</p>
+            <button className="motorista-secondary" onClick={() => window.location.reload()}>Tentar carregar novamente</button>
+          </div>
+        )}
         {loadError ? (
           <div className="motorista-card">
             <p className="motorista-alert" role="alert">
@@ -966,6 +1007,9 @@ export default function MotoristaApp() {
                                 )?.name ?? expense.categoryId}
                               </strong>
                               {expense.note && <small>{expense.note}</small>}
+                              {expense.paymentMethodId && paymentMethods.find((method) => method.id === expense.paymentMethodId) && (
+                                <small>{paymentMethods.find((method) => method.id === expense.paymentMethodId)!.name}</small>
+                              )}
                               {fuelExpense(expense, categories) && (
                                 <small>
                                   {expense.fuel?.incomplete !== false
@@ -1009,6 +1053,10 @@ export default function MotoristaApp() {
                     <div className="motorista-day-row motorista-expense-day-row">
                       <div className="motorista-expense-details">
                         <strong>Total: {money(row.expense.cents)} · {row.installments} {row.installments === 1 ? "parcela" : "parcelas"}</strong>
+                        {row.expense.purchaseDate && <small>Compra em {dateLabel(row.expense.purchaseDate)}</small>}
+                        {row.expense.paymentMethodId && paymentMethods.find((method) => method.id === row.expense.paymentMethodId) && (
+                          <small>{paymentMethods.find((method) => method.id === row.expense.paymentMethodId)!.name}</small>
+                        )}
                         <small>Parcela {row.installment} de {row.installments} · Cota do mês: {money(row.monthlyCents)}</small>
                         <small>Custo reconhecido no período</small>
                         {row.futureCents > 0 && <small>Previsto neste período: {money(row.futureCents)}</small>}
@@ -1026,8 +1074,26 @@ export default function MotoristaApp() {
                 )}
               </section>
             )}
-            {tab === "relatorios" &&
-              (validBounds(reportBounds) && reportBounds.from <= today ? (
+            {tab === "relatorios" && <>
+              <div className="motorista-report-tabs" role="tablist" aria-label="Consultas de relatórios">
+                {(["general", "expenses"] as const).map((item, index) => <button
+                  key={item} type="button" role="tab" id={`motorista-report-tab-${item}`}
+                  aria-controls={`motorista-report-panel-${item}`} aria-selected={reportsTab === item}
+                  tabIndex={reportsTab === item ? 0 : -1} className={reportsTab === item ? "active" : ""}
+                  onClick={() => setReportsTab(item)}
+                  onKeyDown={(event) => {
+                    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                    event.preventDefault();
+                    const next = event.key === "Home" ? "general" : event.key === "End" ? "expenses"
+                      : index === 0 ? "expenses" : "general";
+                    setReportsTab(next);
+                    document.getElementById(`motorista-report-tab-${next}`)?.focus();
+                  }}
+                >{item === "general" ? "Geral" : "Gastos"}</button>)}
+              </div>
+              <div role="tabpanel" id="motorista-report-panel-general" aria-labelledby="motorista-report-tab-general"
+                hidden={reportsTab !== "general"} tabIndex={0}>
+              {reportsTab === "general" && (validBounds(reportBounds) && reportBounds.from <= today ? (
                 <MotoristaReports
                   days={days}
                   expenses={expenses}
@@ -1062,6 +1128,16 @@ export default function MotoristaApp() {
                   </p>
                 </section>
               ))}
+              </div>
+              <div role="tabpanel" id="motorista-report-panel-expenses" aria-labelledby="motorista-report-tab-expenses"
+                hidden={reportsTab !== "expenses"} tabIndex={0}>
+                {reportsTab === "expenses" && (paymentMethodsReady ? <MotoristaExpenseReports
+                  expenses={expenses} paymentMethods={paymentMethods} categories={categories}
+                  from={invoiceBounds.from} to={invoiceBounds.to}
+                  controls={<PeriodFilter selection={invoicePeriod} onChange={setInvoicePeriod} />}
+                /> : !paymentMethodsError ? <p>Carregando as formas de pagamento…</p> : null)}
+              </div>
+            </>}
             {tab === "definicoes" && (
               <MotoristaSettings
                 days={days}
@@ -1070,6 +1146,7 @@ export default function MotoristaApp() {
                 goals={goals}
                 plans={plans}
                 profiles={profiles}
+                paymentMethods={paymentMethods}
                 saving={saving}
                 save={saveDocument}
               />
@@ -1081,7 +1158,7 @@ export default function MotoristaApp() {
                   <div className="motorista-card motorista-form">
                     <h2>Exportar todo o histórico</h2>
                     <p>
-                      Backup v4 inclui jornadas, pagamentos, categorias, metas,
+                      Backup v5 inclui jornadas, pagamentos, formas de pagamento, categorias, metas,
                       calendário, compromissos, vínculos e premissas históricas.
                       Campos desconhecidos em documentos JSON são preservados.
                     </p>
@@ -1114,6 +1191,7 @@ export default function MotoristaApp() {
                               .filter((e) => e !== null),
                             goals,
                             today,
+                            paymentMethods,
                           ),
                           "motorista-lancamentos-" + today + ".csv",
                           "text/csv;charset=utf-8",
@@ -1261,12 +1339,14 @@ export default function MotoristaApp() {
                 initial={expenseDraft}
                 expenses={expenses}
                 categories={categories}
+                paymentMethods={paymentMethods}
                 saving={saving}
                 onSave={saveExpense}
                 onCancel={() => setModal(null)}
               />
             ) : modal === "maintenance" ? (
               <MaintenanceEditor key={maintenanceDraft?.id ?? maintenanceNewId} initial={maintenanceDraft}
+                paymentMethods={paymentMethods}
                 saving={saving} onSave={saveMaintenance} installmentsPreview={installmentsPreview} onCancel={() => setModal(null)} />
             ) : null}
           </dialog>

@@ -1,5 +1,6 @@
 import { validateJourney } from "./motorista-journey";
 import { analyticExpenses, installmentsPreview, validateMaintenanceInput } from "./motorista-maintenance";
+import { expensePaymentDueDate, validatePaymentMethod, validatePaymentMethodSnapshot } from "./motorista-payment-methods";
 
 export type JourneyPause = {
   id: string;
@@ -87,6 +88,19 @@ export type Expense = {
   fuel?: FuelDetails;
   plannedExpenseId?: string | null;
   maintenance?: { startMonth: string; installments: number };
+  paymentMethodId?: string | null;
+  paymentMethodSnapshot?: PaymentMethodSnapshot | null;
+  purchaseDate?: string;
+};
+export type PaymentMethodSnapshot = {
+  type: "other" | "credit";
+  closingDay?: number | null;
+  dueDay?: number | null;
+};
+export type PaymentMethod = PaymentMethodSnapshot & {
+  id: string;
+  name: string;
+  active: boolean;
 };
 export type ExpenseScope =
   "operational" | "vehicle" | "personal" | "unclassified";
@@ -133,7 +147,7 @@ export type CostProfile = {
   workShare: number;
 };
 export type Backup = {
-  version: 4;
+  version: 5;
   exportedAt: string;
   days: Day[];
   expenses: Expense[];
@@ -141,6 +155,7 @@ export type Backup = {
   goals: Goal[];
   plannedExpenses: PlannedExpense[];
   costProfiles: CostProfile[];
+  paymentMethods: PaymentMethod[];
 };
 
 export type ImportEntry = { name: string; id: string; data: object };
@@ -149,18 +164,22 @@ export function assertBackupEnvironment(input: unknown) {
     (input as { sourceEnvironment?: unknown }).sourceEnvironment === "local-test")
     throw new Error("Este backup foi exportado do teste local e não pode ser importado nos dados reais.");
 }
-// Categorias entram primeiro. Cada compromisso e seus pagamentos importados
+// Categorias e formas entram primeiro. Cada compromisso e seus pagamentos importados
 // permanecem na mesma transação, mesmo se o arquivo ultrapassar um lote.
 export function importBatches(
   entries: ImportEntry[],
   limit = 150,
   journeyDates: string[] = [],
 ): ImportEntry[][] {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 150)
+    throw new Error("O limite de importação deve ser um inteiro entre 1 e 150.");
   const batches: ImportEntry[][] = [];
-  const categories = entries.filter((e) => e.name === "categories");
-  for (let i = 0; i < categories.length; i += limit)
-    batches.push(categories.slice(i, i + limit));
-  const remaining = entries.filter((e) => e.name !== "categories");
+  for (const name of ["categories", "paymentMethods"]) {
+    const records = entries.filter((e) => e.name === name);
+    for (let i = 0; i < records.length; i += limit)
+      batches.push(records.slice(i, i + limit));
+  }
+  const remaining = entries.filter((e) => !["categories", "paymentMethods"].includes(e.name));
   const groups = new Map<string, ImportEntry[]>();
   for (const e of remaining) {
     const link =
@@ -176,12 +195,18 @@ export function importBatches(
     groups.set(key, [...(groups.get(key) ?? []), e]);
   }
   let batch: ImportEntry[] = [];
+  // Uma leitura getAfter por vínculo. Reserva duas chamadas para o marcador de jornada.
+  // Não depende de cache das regras para respeitar o teto de 20 chamadas por transação.
+  const paymentLookups = (records: ImportEntry[]) => records.filter((e) =>
+    e.name === "expenses" && (e.data as Expense).paymentMethodId).length;
   for (const group of groups.values()) {
     if (group.length > limit)
       throw new Error(
         `Um compromisso reúne ${group.length} documentos vinculados; divida o histórico em backups consistentes de até ${limit} itens por compromisso antes de importar.`,
       );
-    if (batch.length + group.length > limit) {
+    if (paymentLookups(group) > 18)
+      throw new Error("Um compromisso reúne mais de 18 gastos com forma de pagamento; divida-o em backups consistentes antes de importar.");
+    if (batch.length + group.length > limit || paymentLookups(batch) + paymentLookups(group) > 18) {
       batches.push(batch);
       batch = [];
     }
@@ -490,7 +515,7 @@ export function mergeGainsIntoDays(days: Day[], gains: Gain[]): Day[] {
 export function validateBackup(input: unknown): Backup {
   if (
     !object(input) ||
-    ![1, 2, 3, 4].includes(input.version as number) ||
+    ![1, 2, 3, 4, 5].includes(input.version as number) ||
     typeof input.exportedAt !== "string" ||
     !Number.isFinite(Date.parse(input.exportedAt)) ||
     !["days", "expenses", "categories", "goals"].every((key) =>
@@ -504,20 +529,22 @@ export function validateBackup(input: unknown): Backup {
   const categories = input.categories as unknown[];
   const goals = input.goals as unknown[];
   const plannedExpenses =
-    input.version === 4 ? (input.plannedExpenses as unknown[]) : [];
+    Number(input.version) >= 4 ? (input.plannedExpenses as unknown[]) : [];
   const costProfiles =
-    input.version === 4 ? (input.costProfiles as unknown[]) : [];
+    Number(input.version) >= 4 ? (input.costProfiles as unknown[]) : [];
+  const paymentMethods = input.version === 5 ? (input.paymentMethods as unknown[]) : [];
   if (
     !Array.isArray(gains) ||
     !Array.isArray(plannedExpenses) ||
     !Array.isArray(costProfiles) ||
+    !Array.isArray(paymentMethods) ||
     days.length +
       gains.length +
       expenses.length +
       categories.length +
       goals.length +
       plannedExpenses.length +
-      costProfiles.length >
+      costProfiles.length + paymentMethods.length >
       10000
   )
     throw new Error("Backup grande demais (limite de 10.000 itens).");
@@ -586,6 +613,7 @@ export function validateBackup(input: unknown): Backup {
     )
   )
     throw new Error("Há metas inválidas no backup.");
+  for (const method of paymentMethods) validatePaymentMethod(method);
   const unique = (items: unknown[], key: string) =>
     new Set(items.map((item) => (item as Record<string, unknown>)[key]))
       .size === items.length;
@@ -596,7 +624,8 @@ export function validateBackup(input: unknown): Backup {
     !unique(categories, "id") ||
     !unique(goals, "month") ||
     !unique(plannedExpenses, "id") ||
-    !unique(costProfiles, "id")
+    !unique(costProfiles, "id") ||
+    !unique(paymentMethods, "id")
   )
     throw new Error("O backup contém identificadores duplicados.");
   const categoryIds = new Set(categories.map((item) => (item as Category).id));
@@ -609,10 +638,11 @@ export function validateBackup(input: unknown): Backup {
     goals,
     plannedExpenses,
     costProfiles,
+    paymentMethods,
   );
   return {
     ...input,
-    version: 4,
+    version: 5,
     exportedAt: input.exportedAt,
     days: mergeGainsIntoDays(days as Day[], gains as Gain[]),
     expenses: expenses as Expense[],
@@ -620,6 +650,7 @@ export function validateBackup(input: unknown): Backup {
     goals: goals as Goal[],
     plannedExpenses: plannedExpenses as PlannedExpense[],
     costProfiles: costProfiles as CostProfile[],
+    paymentMethods: paymentMethods as PaymentMethod[],
   };
 }
 
@@ -630,6 +661,7 @@ function validateExtensions(
   goals: unknown[],
   plans: unknown[],
   profiles: unknown[],
+  methods: unknown[],
 ) {
   const id = (v: unknown) =>
     typeof v === "string" && /^[a-zA-Z0-9_-]{1,128}$/.test(v);
@@ -661,6 +693,7 @@ function validateExtensions(
       ...goals,
       ...plans,
       ...profiles,
+      ...methods,
     ].every((x) => json(x))
   )
     throw new Error("Campos históricos não são valores JSON válidos.");
@@ -733,6 +766,7 @@ function validateExtensions(
     })
   )
     throw new Error("Planejamento mensal inválido.");
+  const methodIds = new Set((methods as PaymentMethod[]).map((method) => method.id));
   if (
     !expenses.every((x) => {
       const e = x as Expense,
@@ -746,6 +780,12 @@ function validateExtensions(
       }
       return (
         scope(e.scope) &&
+        (e.purchaseDate === undefined || isDate(e.purchaseDate)) &&
+        (e.paymentMethodId == null
+          ? e.paymentMethodSnapshot == null
+          : id(e.paymentMethodId) && methodIds.has(e.paymentMethodId) && (() => {
+            try { validatePaymentMethodSnapshot(e.paymentMethodSnapshot); return true; } catch { return false; }
+          })()) &&
         (e.kind === undefined || ["expense", "fuel", "maintenance"].includes(e.kind)) &&
         (e.plannedExpenseId == null || id(e.plannedExpenseId)) &&
         (f === undefined ||
@@ -850,6 +890,7 @@ export function exportCsv(
   }> = [],
   goals: Goal[] = [],
   reference = localDate(),
+  methods: PaymentMethod[] = [],
 ) {
   const names = new Map(
     categories.map((category) => [category.id, category.name]),
@@ -876,6 +917,15 @@ export function exportCsv(
     ],
   ];
   const maintenanceCsv = new Map<number, string[]>();
+  const paymentCsv = new Map<number, string[]>();
+  const appendPayment = (expense: Expense) => {
+    const method = methods.find((item) => item.id === expense.paymentMethodId);
+    const snapshot = expense.paymentMethodSnapshot;
+    paymentCsv.set(rows.length, [expense.paymentMethodId ?? "", method?.name ?? "", snapshot?.type ?? "",
+      snapshot?.closingDay == null ? "" : String(snapshot.closingDay),
+      snapshot?.dueDay == null ? "" : String(snapshot.dueDay), expense.purchaseDate ?? "",
+      method ? expensePaymentDueDate(expense, methods) ?? "" : ""]);
+  };
   const known = (
     day: Day,
     field: keyof NonNullable<Day["filled"]>,
@@ -943,6 +993,7 @@ export function exportCsv(
       const schedule = installmentsPreview({ ...expense.maintenance, totalCents: expense.cents });
       maintenanceCsv.set(rows.length, [expense.id, String(expense.cents), expense.maintenance.startMonth,
         String(expense.maintenance.installments), "", "", "", "", ""]);
+      appendPayment(expense);
       rows.push(["manutencao_registro", "", names.get(expense.categoryId) ?? expense.categoryId,
         expense.note, "", "", "", "", "", "registro_total", "", "", "", "", "", "", ""]);
       schedule.forEach(({ month, cents }, index) => {
@@ -960,6 +1011,7 @@ export function exportCsv(
       });
       continue;
     }
+    appendPayment(expense);
     rows.push([
       "gasto",
       expense.date,
@@ -1005,7 +1057,8 @@ export function exportCsv(
     rows
       .map((row, index) => {
         if (index === 0) return [...row, "inicio_jornada", "fim_jornada", "pausas_json", "odometro_inicial_km", "odometro_final_km", "periodos", "periodos_json", "turno_legado",
-          "manutencao_id", "manutencao_total_centavos", "manutencao_mes_inicial", "manutencao_numero_parcelas", "manutencao_numero_parcela", "manutencao_mes_parcela", "manutencao_parcela_centavos", "manutencao_alocacao", "manutencao_prevista_centavos"];
+          "manutencao_id", "manutencao_total_centavos", "manutencao_mes_inicial", "manutencao_numero_parcelas", "manutencao_numero_parcela", "manutencao_mes_parcela", "manutencao_parcela_centavos", "manutencao_alocacao", "manutencao_prevista_centavos",
+          "forma_pagamento_id", "forma_pagamento_nome", "forma_pagamento_tipo", "cartao_fechamento_dia", "cartao_vencimento_dia", "data_compra_manutencao", "vencimento_pagamento"];
         const day = row[0] === "dados_do_dia" ? days.find((d) => d.date === row[1]) : undefined;
         return [...row,
           day?.journey?.startedAt ?? "",
@@ -1017,6 +1070,7 @@ export function exportCsv(
           day?.periods === undefined ? "" : JSON.stringify(day.periods),
           day?.shift ?? "",
           ...(maintenanceCsv.get(index) ?? Array<string>(9).fill("")),
+          ...(paymentCsv.get(index) ?? Array<string>(7).fill("")),
         ];
       })
       .map((row) =>

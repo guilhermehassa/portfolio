@@ -10,9 +10,11 @@ const require = createRequire(import.meta.url);
 const root = fileURLToPath(new URL("../", import.meta.url));
 const React = require("react");
 const categories = [{ id: "combustivel", name: "Combustível" }, { id: "outros", name: "Outros" }];
+const paymentMethods = [{ id: "pix", name: "Pix", type: "other", active: true },
+  { id: "cartao", name: "Cartão", type: "credit", active: true, closingDay: 20, dueDay: 27 }];
 
 // Exercita a montagem enviada ao callback sem DOM ou acesso à persistência.
-function editor(initial, expenses = []) {
+function editor(initial, expenses = [], options = {}) {
   let cursor = 0, tree, saved, props;
   const state = [], modules = new Map();
   const hooks = { ...React, useState(initialState) {
@@ -38,11 +40,11 @@ function editor(initial, expenses = []) {
     return loadedModule.exports;
   }
   const { ExpenseEditor } = load("components/motorista/motorista-forms.tsx");
-  props = { initial, expenses, categories, saving: false, onCancel() {},
-    onSave: async (expense, previous) => { saved = { expense, previous }; return true; } };
+  props = { initial, expenses, categories, paymentMethods, saving: false, onCancel() {},
+    onSave: async (expense, previous) => { saved = { expense, previous }; return true; }, ...options };
   const render = () => { cursor = 0; tree = ExpenseEditor(props); };
   const nodes = (value) => Array.isArray(value) ? value.flatMap(nodes) : React.isValidElement(value)
-    ? [value, ...nodes(value.props.children)] : [];
+    ? [value, ...nodes(value.type.name === "PaymentMethodField" ? value.type(value.props) : value.props.children)] : [];
   const text = (value) => Array.isArray(value) ? value.map(text).join("") : React.isValidElement(value)
     ? text(value.props.children) : value == null ? "" : String(value);
   function input(label) {
@@ -58,7 +60,12 @@ function editor(initial, expenses = []) {
       render();
     },
     checked: (label) => input(label).props.checked,
+    value: (label) => input(label).props.value,
+    required: (label) => input(label).props.required,
+    options: (label) => nodes(input(label).props.children).filter((node) => node.type === "option").map((node) => ({ value: node.props.value, text: text(node.props.children) })),
+    error: () => nodes(tree).find((node) => node.type.name === "FormError").props.children,
     refresh(next) { props = { ...props, ...next }; render(); },
+    async submit() { await tree.props.onSubmit({ preventDefault() {} }); render(); return saved; },
     async save() {
       await tree.props.onSubmit({ preventDefault() {} }); render();
       const error = nodes(tree).find((node) => node.type.name === "FormError").props.children;
@@ -122,12 +129,64 @@ test("escolha explícita de Tanque cheio grava full e desmarcar grava partial pr
 test("novo abastecimento usa tanque parcial e não inventa odômetro, atribuição ou vínculo", async () => {
   const app = editor({ date: "2025-01-02", categoryId: "combustivel", kind: "fuel" });
   app.change("Valor pago", "R$ 100,00");
+  app.change("Forma de pagamento", "pix");
   const { expense, previous } = await app.save();
   assert.equal(previous, undefined); assert.equal(expense.fuel.tank, "partial");
   assert.equal(Object.hasOwn(expense.fuel, "previousMissing"), false); assert.equal(expense.fuel.incomplete, true);
   assert.equal(Object.hasOwn(expense.fuel, "odometer"), false);
   assert.equal(Object.hasOwn(expense, "scope"), false);
   assert.equal(Object.hasOwn(expense, "plannedExpenseId"), false);
+});
+
+test("novos gastos e abastecimentos exigem forma ativa e guardam condições do cartão", async () => {
+  for (const kind of ["expense", "fuel"]) {
+    const app = editor({ date: "2025-10-19", categoryId: kind === "fuel" ? "combustivel" : "outros", kind });
+    app.change("Valor pago", "R$ 100,00");
+    assert.equal(app.required("Forma de pagamento"), true);
+    assert.equal(await app.submit(), undefined); assert.match(app.error(), /forma de pagamento/);
+    app.change("Forma de pagamento", "cartao");
+    const { expense } = await app.save();
+    assert.equal(expense.paymentMethodId, "cartao");
+    assert.deepEqual(expense.paymentMethodSnapshot, { type: "credit", closingDay: 20, dueDay: 27 });
+  }
+});
+
+test("histórico vazio continua opcional e sem sinalização ao salvar outros campos", async () => {
+  const previous = fuel();
+  const app = editor(previous, [previous]);
+  assert.equal(app.value("Forma de pagamento"), "");
+  assert.equal(app.required("Forma de pagamento"), false);
+  assert.equal(app.options("Forma de pagamento")[0].text, "");
+  app.change("Observação", "Correção histórica");
+  const { expense } = await app.save();
+  assert.equal(Object.hasOwn(expense, "paymentMethodId"), false);
+  assert.equal(Object.hasOwn(expense, "paymentMethodSnapshot"), false);
+});
+
+test("edição conserva forma inativa e termos originais e impede limpar vínculo existente", async () => {
+  const previous = fuel({ paymentMethodId: "cartao", paymentMethodSnapshot: { type: "credit", closingDay: 18, dueDay: 25 } });
+  const methods = paymentMethods.map((method) => method.id === "cartao" ? { ...method, active: false, closingDay: 10 } : method);
+  const app = editor(previous, [previous], { paymentMethods: methods });
+  assert.ok(app.options("Forma de pagamento").some((option) => option.value === "cartao"));
+  app.change("Observação", "Editada");
+  const { expense } = await app.save();
+  assert.equal(expense.paymentMethodId, "cartao"); assert.deepEqual(expense.paymentMethodSnapshot, previous.paymentMethodSnapshot);
+  app.change("Forma de pagamento", ""); await app.submit(); assert.match(app.error(), /forma de pagamento/);
+  const fresh = editor({ date: "2025-10-01", categoryId: "outros" }, [], { paymentMethods: methods });
+  assert.ok(!fresh.options("Forma de pagamento").some((option) => option.value === "cartao"));
+  fresh.change("Valor pago", "R$ 10,00"); fresh.change("Forma de pagamento", "cartao");
+  await fresh.submit(); assert.match(fresh.error(), /ativa/);
+});
+
+test("falha na persistência mantém forma e rascunho para tentar de novo", async () => {
+  let attempts = 0, canceled = 0;
+  const app = editor({ date: "2025-10-19", categoryId: "outros" }, [], {
+    onCancel: () => canceled++, onSave: async () => { attempts++; throw new Error("Conflito concorrente"); },
+  });
+  app.change("Valor pago", "R$ 25,00"); app.change("Forma de pagamento", "pix"); app.change("Observação", "Rascunho");
+  await app.submit(); assert.equal(attempts, 1); assert.equal(canceled, 0); assert.match(app.error(), /Conflito/);
+  assert.equal(app.value("Forma de pagamento"), "pix"); assert.equal(app.value("Observação"), "Rascunho");
+  app.refresh({ saving: true }); await app.submit(); assert.equal(attempts, 1);
 });
 
 test("gasto comum preserva classificação/vínculo ocultos e observação continua editável", async () => {

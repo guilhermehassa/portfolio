@@ -1,6 +1,6 @@
 # Motorista — documentação da aplicação
 
-Aplicação pessoal em `/motorista` para registrar jornadas, pagamentos e abastecimentos e planejar uma meta mensal de saldo. Esta documentação inclui a evolução de **06/10/2026**, o fluxo de horários/pausas e os refinamentos de **07/10/2026**, com acesso ao Firebase real restabelecido. O [plano de evolução](PLANO-EVOLUCAO-MOTORISTA.md) contém o acompanhamento; o [plano original](PLANO-MOTORISTA.md) é referência histórica.
+Aplicação pessoal em `/motorista` para registrar jornadas, pagamentos e abastecimentos e planejar uma meta mensal de saldo. Esta documentação inclui a evolução de **06/10/2026**, o fluxo de horários/pausas e os refinamentos de **07/10/2026**, com acesso ao Firebase real restabelecido, e o acréscimo de formas de pagamento e consulta de faturas de **13/10/2026**. O [plano de formas de pagamento](PLANO-FORMAS-PAGAMENTO-MOTORISTA.md) acompanha essa entrega; o [plano de evolução](PLANO-EVOLUCAO-MOTORISTA.md) e o [plano original](PLANO-MOTORISTA.md) preservam as etapas anteriores.
 
 Código validado localmente. Novas regras e enriquecimento aditivo do histórico aplicados ao Firebase pelo Chrome real via Playwright MCP. O site não foi publicado nesta execução.
 
@@ -13,8 +13,8 @@ Em desenvolvimento e produção, login Google restrito ao proprietário, com ver
 | Início | Ações da jornada, registrar gasto e abastecer; cards Meta pra hoje, Meta da semana, Meta do mês e ganhos da semana com seletor semanal. |
 | Ganhos | Registrar dia anterior e editar cada dia em cinco etapas, mantendo o filtro de período. |
 | Gastos | Registrar, complementar e excluir gastos, abastecimentos e registros de manutenção por meses. |
-| Relatórios | Resumos, Médias, Constatações, Lucratividade, Plataformas, Gastos e Veículo. |
-| Definições, no menu da conta | Meta por mês, calendário, base histórica, perfis do veículo, compromissos e categorias. |
+| Relatórios | Subaba Geral com os sete grupos atuais, e subaba Gastos com consulta de compras por vencimento. |
+| Definições, no menu da conta | Meta por mês, calendário, base histórica, perfis do veículo, compromissos, categorias e formas de pagamento. |
 | Exportar, no menu da conta | Backup JSON, CSV e importação com prévia. |
 
 Seções são estados internos, sem URL própria. Recarregar retorna ao Início. Ganhos e Gastos têm filtros próprios de dia, semana, mês e intervalo personalizado. Relatórios usa um único filtro de **semana segunda–domingo ou mês**, corrente/passado, comum aos sete grupos. Períodos totalmente futuros ficam bloqueados; tanto a semana quanto o mês correntes terminam hoje para realizado e gráficos. Os limites são inclusivos. Período inválido não produz indicadores.
@@ -95,6 +95,22 @@ Formulários guardam o estado inicial; alteração concorrente recusa a gravaç�
 ## Gastos e abastecimentos
 
 Cadastro rápido exige data, categoria e valor positivo; observação opcional até 500 caracteres. Gasto não cria jornada nem confirma folga.
+
+### Formas de pagamento e faturas — 13/10/2026
+
+Em Definições, cadastre um nome e o tipo **Outro** (Pix, Dinheiro ou Débito) ou **Cartão de Crédito**. Cartão exige dias mensais de fechamento e vencimento, inteiros de 1 a 31. Não há cadastros automáticos. É possível editar, desativar e reativar; desativação conserva os vínculos e a forma continua consultável no histórico. Nomes duplicados são recusados no formulário.
+
+Todo novo gasto, abastecimento ou manutenção exige uma forma ativa, inclusive em cadastros retroativos. Registros existentes sem forma continuam em branco e podem ser editados assim, sem aviso de incompletude ou preenchimento automático. A escolha voluntária associa a forma; uma associação já preenchida não pode ser limpa pelo formulário. Edição mantém uma forma desativada já vinculada.
+
+Nova manutenção recebe **Data da compra**, inicialmente hoje e editável no cadastro e na edição. `purchaseDate` é adicional: o `date` técnico do primeiro dia do mês de rateio continua intacto. A edição de manutenção antiga sem compra mantém a ausência quando esse campo não é alterado. A data da compra não interfere no rateio analítico.
+
+**Relatórios → Geral** preserva integralmente os sete grupos atuais. **Relatórios → Gastos** é uma nova listagem somente leitura, filtrada pelo vencimento: dia, semana, mês ou intervalo, inclusive futuro; também por forma e categoria. Usa todo o histórico antes de selecionar os vencimentos, permitindo que uma fatura de novembro contenha compras de outubro. Exibe compra, vencimento, forma, categoria, descrição e valor, com total filtrado e subtotais por forma. O filtro de categoria produz um subtotal, não o valor integral de uma fatura.
+
+Compra no dia do fechamento entra no próximo ciclo. O vencimento é a primeira ocorrência do dia cadastrado posterior ao fechamento, podendo cair no mês seguinte. Dias 29–31 inexistentes usam o último dia do mês; datas são civis, sem ajuste automático para dia útil ou integração bancária. Outro usa a data da compra. Os termos são guardados no gasto: mudanças posteriores no tipo/dias do cadastro não recalculam compras anteriores; trocar a forma captura seus termos atuais. O nome exibido acompanha o cadastro por ID.
+
+Manutenção entra na consulta pelo custo total uma vez, usando a data real da compra; suas parcelas analíticas não viram parcelas financeiras. Gastos sem forma e manutenções sem compra histórica não têm vencimento inferido. Não há agenda, quitação, juros ou novo parcelamento. Saldo, metas e custos reconhecidos continuam com os cálculos anteriores, sem nova dedução do valor da fatura.
+
+As regras acrescentam `paymentMethods` e validam os vínculos/termos presentes, mantendo autorização do proprietário e restauração de históricos sem forma. **Publicadas no Firebase real `motorista-17946`, banco `(default)`, em 13/10/2026 às 16:34:03 (São Paulo)**, após autorização explícita do usuário. O console aceitou a compilação e a publicação; a release ativa foi relida, com texto integralmente igual a `firestore.rules`. Regras anteriores conferidas e preservadas em `backups/motorista/2026-10-13-payment-methods-rules/`, sem divergências fora do escopo. Nenhum documento real foi criado, alterado ou excluído. Uma falha ao carregar a nova coleção não bloqueia Início, Ganhos ou Geral; operações dependentes aguardam seu carregamento. A validação visual da aplicação permanece com o usuário; a publicação não representa teste dos fluxos de gravação.
 
 **Abastecer** admite combustível, volume, unidade `L` ou `m3` (m³) e o checkbox **Tanque cheio**. Tanque cheio marcado significa completo (`full`); desmarcado significa parcial (`partial`) nos novos registros ou após escolha explícita. Não há campo de odômetro nem opção de marcar abastecimento anterior ausente nesse formulário. Salve só o valor e complete os detalhes disponíveis depois. Há um único pagamento em `expenses`; detalhes não geram outra dedução.
 
@@ -192,12 +208,16 @@ Next.js/App Router, React, TypeScript e Firebase web. Site estático (`output: "
 
 | Arquivo | Responsabilidade |
 | --- | --- |
-| `components/motorista/motorista-app.tsx` | Login, seis assinaturas, navegação, transações, filtros e backups. |
+| `components/motorista/motorista-app.tsx` | Login, sete assinaturas, navegação, transações, filtros e backups. |
 | `motorista-forms.tsx` | Campos compartilhados de jornada, pausas, períodos e gasto/abastecimento. |
 | `motorista-day-ending.tsx` | Quatro etapas do encerramento no Início e cinco etapas de cadastro/edição em Ganhos, com navegação e rascunho até a confirmação final. |
 | `motorista-settings.tsx` | Planejamento, perfis, compromissos e categorias. |
 | `motorista-reports.tsx` | Sete grupos de Relatórios, gráficos de linhas/categorias e cobertura, somente semanas/meses correntes ou passados. |
-| `lib/motorista.ts` | Tipos, datas, validação v1–v4, lotes e CSV. |
+| `motorista-expense-reports.tsx` | Nova listagem por vencimento, forma e categoria, incluindo períodos futuros. |
+| `motorista-payment-methods.tsx` | Cadastro, edição e ativação das formas de pagamento. |
+| `lib/motorista.ts` | Tipos, datas, validação v1–v5, lotes e CSV. |
+| `lib/motorista-payment-methods.ts` | Validação/seleção de formas, preservação de termos e cálculo de vencimentos. |
+| `lib/motorista-invoice-reporting.ts` | Seleção e totalização dos gastos por vencimento. |
 | `lib/motorista-evolution.ts` | Elegibilidade, consumo, estimativas e planejamento. |
 | `lib/motorista-weekly-goal.ts` | Rateio da meta semanal por dias planejados de cada mês e realizado até a referência. |
 | `lib/motorista-maintenance.ts` | Mestre de manutenção, parcelas exatas, cotas por data/calendário e custos analíticos para metas/relatórios. |
@@ -219,7 +239,8 @@ Coleções em `users/{uid}`:
 | Coleção | ID e evolução |
 | --- | --- |
 | `days` | Data; ganhos/jornada, status, filled, origem, períodos opcionais, turno legado, nota, odômetros e `journey` opcional com início/fim/pausas. |
-| `expenses` | UUID; pagamento, data/categoria/nota, tipo/escopo, combustível e vínculo opcionais. |
+| `expenses` | UUID; pagamento, data/categoria/nota, tipo/escopo, combustível e vínculo opcionais; forma/termos e compra da manutenção opcionais para compatibilidade histórica. |
+| `paymentMethods` | UUID; nome, tipo, situação ativa, fechamento e vencimento quando crédito. |
 | `categories` | ID preservado; nome, escopo e tipo de custo. |
 | `goals` | Mês; meta, calendário, base histórica e ajuste opcional. |
 | `plannedExpenses` | UUID; compromisso e mapa de ocorrências pagas. |
@@ -229,7 +250,7 @@ Centavos/minutos inteiros; KM/volumes decimais; datas civis locais. Consumo anti
 
 `journey` contém `startedAt`, `endedAt` (null enquanto aberta) e `pauses` (`id`, `startedAt`, `endedAt`). Horários têm precisão de minuto e fuso explícito. Situação em andamento/pausa/encerrada deriva desses horários, preservando os status financeiros existentes. O marcador interno `journeyState/current` controla a exclusividade; o backup guarda a jornada, e a importação reconstrói o marcador a partir dos dias, recusando duas jornadas abertas.
 
-Seis onSnapshot carregam todo o histórico. Filtros/cálculos em memória, sem paginação. Tela espera as seis respostas, mostra erro/nova tentativa e gravação em andamento. Escritas transacionais detectam conflitos. Categorias padrão persistidas apenas quando necessárias.
+Sete onSnapshot carregam todo o histórico. Filtros/cálculos em memória, sem paginação. As seis coleções anteriores continuam controlando a disponibilidade das telas atuais; carregamento/erro das formas fica separado, e operações que dependem delas aguardam essa sétima resposta. Escritas transacionais detectam conflitos e revalidam a forma antes de gravar. Categorias padrão persistidas apenas quando necessárias.
 
 Regras exigem sessão, UID proprietário e caminho correspondente; outros caminhos não liberados. Regras validam autorização e exclusividade da jornada; esquema/valores são validados no cliente. `periods` é opcional e aditivo: jornadas reais antigas continuam legíveis sem migrar turnos ou inventar períodos.
 
@@ -253,11 +274,11 @@ Reconciliação recursiva final confirmou 31 de 31 documentos, nenhum documento 
 
 Exportação inclui todo o histórico, independentemente do filtro.
 
-JSON **v4**: exportedAt, days, expenses, categories, goals, plannedExpenses, costProfiles. Inclui horários/pausas quando presentes, calendário, perfis históricos e vínculos. Desconhecidos compatíveis com JSON nos documentos são preservados; cópia bruta Firestore é referência para metadados/tipos externos ao formato da aplicação.
+JSON **v5**: exportedAt, days, expenses, categories, goals, plannedExpenses, costProfiles, paymentMethods. Inclui horários/pausas quando presentes, calendário, perfis históricos, vínculos, termos de pagamento e data da compra de manutenção. Desconhecidos compatíveis com JSON nos documentos são preservados; cópia bruta Firestore é referência para metadados/tipos externos ao formato da aplicação.
 
 Exportações usam os dados reais. Arquivos antigos identificados com `sourceEnvironment: "local-test"` são recusados na importação para não promover lançamentos temporários à base original. A antiga seleção de ambiente foi removida; backups reais das versões aceitas continuam legíveis.
 
-Versões **1/2/3** aceitas, normalizadas para v4 sem fabricar fechamento. V2 soma gains aos totais conforme contrato anterior.
+Versões **1/2/3/4** aceitas, normalizadas para v5 sem fabricar fechamento ou forma de pagamento. V2 soma gains aos totais conforme contrato anterior.
 
 1. Selecione JSON, confira prévia e escolha preservar existentes (padrão) ou atualizar mesmos IDs.
 2. Confirme: preservar ignora existentes; atualizar substitui documento inteiro. Ausentes não são apagados; ganhos não são somados novamente.
@@ -265,15 +286,17 @@ Versões **1/2/3** aceitas, normalizadas para v4 sem fabricar fechamento. V2 som
 
 Limites: 5.000.000 bytes; 10.000 itens; datas/IDs/categorias/vínculos coerentes e inteiros seguros não negativos. Aceita desconhecidos JSON, rejeita chaves perigosas e profundidade excessiva.
 
-Categorias primeiro. Lotes transacionais até **150 documentos**, mantendo compromisso/pagamentos importados juntos. Grupo maior recusado antes de gravar. Arquivo inteiro não atômico: erro posterior preserva lotes confirmados e informa contagem aplicada. Alteração concorrente interrompe o lote; reexporte/confira antes de repetir.
+Categorias e formas primeiro. Lotes transacionais até **150 documentos**, mantendo compromisso/pagamentos importados juntos. Cada lote também limita a 18 os gastos com forma que consultam referências nas regras, reservando chamadas para a jornada. Grupo que ultrapassa os limites é recusado antes de gravar. Arquivo inteiro não atômico: erro posterior preserva lotes confirmados e informa contagem aplicada. Alteração concorrente interrompe o lote; reexporte/confira antes de repetir.
 
 CSV UTF-8/BOM, separador ponto e vírgula, aspas, CRLF. Identifica centavos/corridas/minutos/KM/consumo, situação, combustível/unidade/volume/odômetro e estimativas em colunas próprias. Também inclui início/fim da jornada, pausas em JSON e odômetros inicial/final. Zero confirmado preservado; ausente vazio. Linha estimativa_trabalho não é pagamento. CSV não restaura; use JSON.
 
 Períodos opcionais são preservados no JSON v4; backups antigos continuam aceitos sem conversão dos turnos. CSV acrescenta `periodos`, `periodos_json` e `turno_legado`: distingue seleção vazia explícita (`[]`) de campo ausente e mantém o valor bruto histórico, sem distribuir ganhos ou horas entre escolhas.
 
-Manutenção permanece na coleção `expenses`, com `kind=maintenance`, total em `cents` e `maintenance={startMonth,installments}`. `date` é apenas uma âncora técnica no primeiro dia do mês inicial; não representa vencimento nem pagamento. Não há documentos extras de parcelas, migração de gastos existentes ou mudança de regras/versão do JSON. Backup/importação preservam o mestre e campos legados, inclusive a provisão por KM inerte. Versões anteriores do aplicativo não entendem esse novo tipo; use a versão atual para importar/analisar backups que contenham manutenção.
+Manutenção permanece na coleção `expenses`, com `kind=maintenance`, total em `cents` e `maintenance={startMonth,installments}`. `date` é apenas uma âncora técnica no primeiro dia do mês inicial; não representa vencimento nem pagamento. `purchaseDate`, quando presente, representa a compra para a nova consulta. Não há documentos extras de parcelas nem migração de gastos existentes. Backup/importação preservam o mestre e campos legados, inclusive a provisão por KM inerte. Use a versão atual para importar/analisar backups v5 e manutenção.
 
 CSV acrescenta colunas de identificação, total, início, número de parcelas, mês/valor da parcela, modo de alocação e cotas futuras. `manutencao_registro` guarda o total em coluna própria, sem repetir `valor_centavos`; `manutencao_custo` preenche o custo reconhecido nessa coluna; `manutencao_prevista` usa somente a coluna `manutencao_prevista_centavos`. Assim o total do mestre não se soma novamente às cotas e o futuro não aparece como realizado.
+
+CSV também acrescenta ID/nome/tipo da forma, fechamento/vencimento, compra da manutenção e vencimento calculado. Esses campos acompanham somente o gasto original ou o mestre; cotas analíticas não se tornam novas compras. As colunas e os valores financeiros anteriores são preservados.
 
 QA exportou conteúdo gerado pelo botão e recuperou 16 documentos fictícios nas seis coleções, sem diferença de campos; segunda prévia propôs zero gravações. Evento de download do Chrome não fornecido pela sessão MCP; bytes do Blob e restauração conferidos diretamente. Importações de teste não alteraram conta real.
 

@@ -326,6 +326,53 @@ html:has(.motorista) {
   padding: 12px 0;
   color: var(--motorista-muted);
 }
+.motorista-invoice-table {
+  min-width: 760px;
+}
+.motorista-invoice-table td:nth-child(1),
+.motorista-invoice-table td:nth-child(2),
+.motorista-invoice-table td:last-child {
+  white-space: nowrap;
+}
+.motorista-invoice-table td:nth-child(5) {
+  min-width: 160px;
+  max-width: 300px;
+  overflow-wrap: anywhere;
+}
+.motorista-invoice-table td:last-child,
+.motorista-invoice-table th:last-child {
+  text-align: right;
+}
+.motorista-invoice-table-scroll:focus-visible {
+  outline: 3px solid var(--motorista-accent);
+  outline-offset: 3px;
+}
+.motorista-report-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  margin-bottom: 20px;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid var(--motorista-border);
+  border-radius: 12px;
+  background: var(--motorista-surface);
+}
+.motorista-report-tabs button {
+  min-height: 44px;
+  padding: 10px 24px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--motorista-muted);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.motorista-report-tabs button.active {
+  background: var(--motorista-button);
+  color: white;
+}
 .motorista-negative {
   color: var(--motorista-danger-text);
 }

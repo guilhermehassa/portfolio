@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 import ts from "typescript";
 
 const directory = mkdtempSync(join(tmpdir(), "motorista-calculos-"));
-for (const name of ["motorista", "motorista-journey", "motorista-evolution", "motorista-day-ending", "motorista-maintenance"]) {
+for (const name of ["motorista", "motorista-journey", "motorista-evolution", "motorista-day-ending", "motorista-maintenance", "motorista-payment-methods", "motorista-invoice-reporting"]) {
   const source = readFileSync(
     new URL(`../lib/${name}.ts`, import.meta.url),
     "utf8",
@@ -556,7 +556,7 @@ test("backup conserva previousMissing como metadado legado nas versões aceitas 
   expenses.push(fill("without-flag", "2026-10-02", 1200, 20));
   for (const version of [1, 2, 3, 4]) {
     const restored = base.validateBackup(JSON.parse(JSON.stringify(backup({ version, gains: [], expenses }))));
-    assert.equal(restored.version, 4);
+    assert.equal(restored.version, 5);
     assert.deepEqual(restored.expenses, expenses);
     const roundTrip = base.validateBackup(JSON.parse(JSON.stringify(restored)));
     assert.deepEqual(roundTrip.expenses, expenses);
@@ -715,7 +715,7 @@ test("backup v4 conserva campos desconhecidos, planejamento e vigências no cicl
   const restored = base.validateBackup(
     JSON.parse(JSON.stringify(base.validateBackup(payload))),
   );
-  assert.deepEqual(restored, payload);
+  assert.deepEqual(restored, { ...payload, version: 5, paymentMethods: [] });
 });
 
 test("arquivo antigo marcado como teste nunca pode ser importado nos dados reais", () => {
@@ -727,7 +727,7 @@ test("backups reais atuais e antigos continuam aceitos sem selecionar outro ambi
   for (const version of [1, 3, 4]) {
     const real = backup({ version });
     assert.doesNotThrow(() => base.assertBackupEnvironment(real));
-    assert.equal(base.validateBackup(real).version, 4);
+    assert.equal(base.validateBackup(real).version, 5);
   }
 });
 test("versões 1 e 3 continuam legadas; v2 soma gains preservando campos antigos", () => {
@@ -744,7 +744,7 @@ test("versões 1 e 3 continuam legadas; v2 soma gains preservando campos antigos
         ],
       }),
     );
-    assert.equal(result.version, 4);
+    assert.equal(result.version, 5);
     assert.equal(result.days[0].status, undefined);
     assert.equal(result.days[0].extraHistorico, "nota");
   }

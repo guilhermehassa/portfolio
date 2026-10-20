@@ -2,7 +2,7 @@
 
 ## Compatibilidade e migração
 
-Evolução aditiva em `users/{uid}`. Nenhuma coleção ou documento existente será removido. IDs, datas, valores, notas e campos desconhecidos permanecem intactos. A cópia bruta contém também metadados e tipos Firestore. O backup da aplicação evolui para versão 4 e aceita versões 1, 2 e 3.
+Evolução aditiva em `users/{uid}`. Nenhuma coleção ou documento existente será removido. IDs, datas, valores, notas e campos desconhecidos permanecem intactos. A cópia bruta contém também metadados e tipos Firestore. O backup atual da aplicação é versão 5, incluindo formas de pagamento, e aceita versões 1, 2, 3 e 4.
 
 `days` mantém os totais por aplicativo, minutos, KM e consumo manual histórico. Acrescenta `status` (`pending`, `closed`, `off`), `origin` (`legacy` ou `user`), `filled` (campos explicitamente preenchidos), `shift`, `note`, `odometerStart`, `odometerEnd`. Legados continuam sem fechamento confirmado: `origin=legacy`, sem `status`; ganhos ou jornada positivos permitem análise com aviso de conferência. Zeros antigos não provam preenchimento. Novos vazios usam `filled=false`; zero informado usa `filled=true`. Ganho rápido cria pendência; gasto nunca cria dia.
 
@@ -27,6 +27,14 @@ Manutenção explícita é um mestre nessa mesma coleção: `kind=maintenance`, 
 `costProfiles` contém `id`, `effectiveFrom`, `vehicle` (próprio/financiado/alugado), `fuelType`, `unit`, `consumption` opcional, `priceCentsPerUnit` opcional e `workShare` (0–100%). `maintenanceCentsPerKm`, `wearCentsPerKm` e `fixedMonthlyCents` foram retirados dos contratos ativos, controles e cálculos; valores antigos permanecem como metadados JSON inertes, com a proteção genérica e preservação de desconhecidos, sem apagar perfis. Uma nova vigência preserva perfis anteriores. Revisar uma vigência existente exige confirmação.
 
 ## Bases de cálculo
+
+### Formas de pagamento e consulta de faturas — 13/10/2026
+
+`paymentMethods` acrescenta `id`, `name`, `type=other|credit`, `active` e dias 1–31 `closingDay`/`dueDay` para crédito. Outro admite dias ausentes/null. Gasto acrescenta `paymentMethodId`, `paymentMethodSnapshot={type,closingDay?,dueDay?}` e, em manutenção, `purchaseDate`. Nenhum campo é preenchido automaticamente no histórico; novos cadastros exigem forma ativa. Manutenção nova inicia a compra em hoje; sua âncora `date` e rateio permanecem iguais. Edição preserva ausências não tocadas.
+
+Consulta recebe os documentos originais de gastos e filtra por vencimento, forma e categoria, sem corte em hoje. Outro vence na compra. Crédito escolhe o fechamento daquele mês se a compra o antecede; no dia do fechamento ou depois, usa o seguinte. Vencimento é o primeiro dia configurado posterior a esse fechamento; meses curtos limitam dias ao último existente. Snapshot preserva o ciclo das compras anteriores quando o cadastro muda. Manutenção representa o total uma vez na consulta, usando a compra real; não transformar cotas analíticas em parcelas financeiras. Sem forma ou compra histórica não há vencimento inferido.
+
+Geral mantém os sete grupos; Gastos é a nova subaba de consulta somente leitura. Total filtrado e subtotais não são controle de quitação, saldo bancário ou novos lançamentos. Não mudam os cálculos abaixo. JSON v5 inclui a sétima coleção; importador entra com formas antes dos gastos, e limita cada lote a 18 referências de pagamento além do teto de 150 documentos. Regras locais preparadas, publicação remota pendente; falha nessa nova assinatura não bloqueia as seis coleções anteriores.
 
 Centavos inteiros, minutos inteiros, datas civis e semana segunda–domingo. Saldo = todos os ganhos menos gastos comuns/abastecimentos nas datas registradas e cotas de manutenção reconhecidas. Inclui pessoais, gastos sem jornada e pendências. O total do mestre nunca é deduzido novamente. Meta usa exclusivamente esse saldo até a data de referência.
 
