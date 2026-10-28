@@ -949,8 +949,8 @@ body:has(.motorista) {
   letter-spacing: -0.03em;
 }
 .motorista label {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 7px;
   width: 100%;
   max-width: 100%;
@@ -959,13 +959,22 @@ body:has(.motorista) {
   font-weight: 700;
   color: var(--motorista-muted);
 }
+.motorista label > * {
+  min-width: 0;
+  max-width: 100%;
+}
 .motorista input,
 .motorista select,
 .motorista textarea {
+  display: block;
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
   min-height: 43px;
+  box-sizing: border-box;
   border: 1px solid var(--motorista-border);
   border-radius: 9px;
   padding: 9px 11px;
@@ -991,10 +1000,40 @@ body:has(.motorista) {
   font-variant-numeric: tabular-nums;
 }
 .motorista input[type="date"],
+.motorista input[type="datetime-local"],
 .motorista input[type="week"],
 .motorista input[type="month"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
   min-height: 48px;
+  box-sizing: border-box;
+  overflow: hidden;
   cursor: pointer;
+}
+.motorista input[type="date"]::-webkit-date-and-time-value,
+.motorista input[type="datetime-local"]::-webkit-date-and-time-value,
+.motorista input[type="week"]::-webkit-date-and-time-value,
+.motorista input[type="month"]::-webkit-date-and-time-value {
+  margin: 0;
+  min-width: 0;
+  max-width: 100%;
+  text-align: left;
+}
+.motorista input[type="date"]::-webkit-datetime-edit,
+.motorista input[type="datetime-local"]::-webkit-datetime-edit,
+.motorista input[type="week"]::-webkit-datetime-edit,
+.motorista input[type="month"]::-webkit-datetime-edit {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
 }
 .motorista-picker {
   display: block;
