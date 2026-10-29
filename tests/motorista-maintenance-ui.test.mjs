@@ -16,7 +16,7 @@ function moduleLoader(react = React) {
     if (modules.has(filename)) return modules.get(filename).exports;
     const loadedModule = { exports: {} };
     modules.set(filename, loadedModule);
-    const privateExport = filename.endsWith("motorista-settings.tsx") ? "\nexport { ProfileEditor };" : "";
+    const privateExport = filename.endsWith("motorista-settings.tsx") ? "\nexport { ProfileEditor, GoalSettings };" : "";
     const code = ts.transpileModule(readFileSync(filename, "utf8") + privateExport, {
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
     }).outputText;
@@ -182,4 +182,24 @@ test("metas e Relatórios apresentam cotas reconhecidas sem somar custo total do
   assert.ok(report.includes(`Total Gastos</span><strong>${money(2625)}`));
   assert.ok(report.includes(`${money(10500)} em 2x`));
   assert.ok(!report.includes(money(13125)));
+});
+
+test("GoalSettings exibe apenas mês, meta de saldo e calendário preservando histórico no salvamento", async () => {
+  let saved, snapshot;
+  const previous = { month: "2026-10", cents: 300000, workDates: ["2026-10-05"], historyDays: 30, variableDailyCents: 5000 };
+  const app = form("components/motorista/motorista-settings.tsx", "GoalSettings", {
+    days: [], expenses: [], categories: [], goals: [previous], profiles: [], plans: [], paymentMethods: [], saving: false,
+    save: async (_name, _id, data, prev) => { saved = data; snapshot = prev; return true; },
+  });
+  assert.throws(() => app.value("Base histórica"), /Campo esperado/);
+  assert.throws(() => app.value("Gasto variável por dia planejado"), /Campo esperado/);
+  app.change("Mês da meta", "2026-10");
+  app.change("Meta mensal de saldo", "R$ 4.500,00");
+  await app.save();
+  assert.equal(saved.month, "2026-10");
+  assert.equal(saved.cents, 450000);
+  assert.deepEqual(saved.workDates, ["2026-10-05"]);
+  assert.equal(saved.historyDays, 30);
+  assert.equal(saved.variableDailyCents, 5000);
+  assert.equal(snapshot, previous);
 });

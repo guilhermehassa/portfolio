@@ -133,7 +133,7 @@ test("meta semanal indisponível com calendário vazio mantém manutenção reco
   const month = calc.monthlyPlanning({ month: "2026-10", reference: "2026-10-07", goals, days: [], expenses, categories: [category], plans: [] });
   assert.equal(month.maintenance, 70);
   assert.equal(month.futureMaintenance, 240);
-  assert.equal(month.required, 1310);
+  assert.equal(month.required, 1070);
   assert.equal(month.requiredDaily, null);
 });
 
@@ -151,18 +151,18 @@ test("cenário de calendário altera cotas somente em memória e mantém soma do
   assert.equal(JSON.stringify({ expense, goals }), snapshot);
 });
 
-test("metas mensais reconhecem até referência e somam cotas futuras uma única vez fora da variável", () => {
-  const goals = [{ month: "2026-10", cents: 1000, workDates: ["2026-10-05", "2026-10-07", "2026-10-09"], variableDailyCents: 10 }];
+test("metas mensais reconhecem até referência e aplicam quociente histórico sobre o saldo restante", () => {
+  const goals = [{ month: "2026-10", cents: 2000, workDates: ["2026-10-05", "2026-10-07", "2026-10-09"], variableDailyCents: 10 }];
   const expenses = [make({ totalCents: 1001, installments: 1 })];
   const days = [day("2026-10-05", { uberCents: 2000 })];
   const args = { month: "2026-10", reference: "2026-10-07", goals, days, expenses, categories: [category], plans: [] };
   const result = calc.monthlyPlanning(args);
   assert.deepEqual([result.gains, result.costs, result.realized, result.maintenance, result.futureMaintenance], [2000, 668, 1332, 668, 333]);
-  assert.equal(result.variable, 20);
-  assert.equal(result.futureRecorded, 0);
-  assert.equal(result.futureCosts, 353);
-  assert.equal(result.required, 21);
-  assert.equal(result.requiredDaily, 10.5);
+  assert.equal(result.missing, 668);
+  assert.equal(result.base.gainsPerDay, 2000);
+  assert.equal(result.base.profitPerDay, 1332);
+  assert.equal(result.required, 668 * (2000 / 1332));
+  assert.equal(result.requiredDaily, (668 / 2) * (2000 / 1332));
   assert.equal(result.base.dailyVariable, 0);
   assert.equal(result.base.separatedCents, 0);
   const ended = calc.monthlyPlanning({ ...args, reference: "2026-11-01" });

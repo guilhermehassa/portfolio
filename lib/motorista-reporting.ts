@@ -1,6 +1,6 @@
 import { goalForMonth, isDate, type Category, type Day, type Expense, type Goal } from "./motorista";
 import { analyticExpenses, maintenanceRows, periodTotals } from "./motorista-maintenance";
-import { addDate, datesBetween, defaultWorkDates, eligible, hasField } from "./motorista-evolution";
+import { addDate, datesBetween, defaultWorkDates, eligible, hasField, historicalBase } from "./motorista-evolution";
 import { weeklyGoalPlanning } from "./motorista-weekly-goal";
 
 export type ReportPeriod = "week" | "month";
@@ -92,18 +92,28 @@ export function reportAnalysis({ filter, from, to, reference, days, expenses, ca
   const remainingDates = calendar.filter((date) => date >= reference &&
     !periodDays.some((day) => day.date === date && ["closed", "off"].includes(day.status ?? "")));
   const missing = goal === null ? null : Math.max(goal - totals.balance, 0);
-  const dates = datesBetween(from, effectiveTo);
+  const base30 = historicalBase(days, expenses, categories, effectiveTo, 30, goals);
+  const multiplier = base30.gainPerProfitRatio ?? 1;
+  const required = missing === null ? null : missing * multiplier;
+  const requiredDaily = missing === null || !remainingDates.length
+    ? null
+    : (missing / remainingDates.length) * multiplier;
+  const dates = datesBetween(from, to);
   const attained = dates.map((date) => {
     const day = periodDays.find((item) => item.date === date);
     return day && (["uberCents", "ninetyNineCents", "otherCents"] as const).some((key) => hasField(day, key))
       ? day.uberCents + day.ninetyNineCents + day.otherCents : null;
   });
+  const plannedSet = new Set(calendar);
+  const remainingSet = new Set(remainingDates);
   const meta = dates.map((date) => {
-    if (goal === null) return null;
+    if (goal === null || !plannedSet.has(date)) return null;
+    if (remainingSet.has(date)) return requiredDaily;
     const cutoff = addDate(date, -1);
     const before = periodTotals(days, expenses, goals, from, cutoff).balance;
+    const dailyMissing = ratio(Math.max(goal - before, 0), calendar.filter((planned) => planned >= date).length);
     // O estado final de datas seguintes não era conhecido no início dessa data.
-    return ratio(Math.max(goal - before, 0), calendar.filter((planned) => planned >= date).length);
+    return dailyMissing === null ? null : dailyMissing * multiplier;
   });
   const consumptionValues = dates.map((date) => {
     const day = periodDays.find((item) => item.date === date);
@@ -124,8 +134,8 @@ export function reportAnalysis({ filter, from, to, reference, days, expenses, ca
       profitPerDay, profitPerKm: ratio(totals.balance, km, kmComplete),
       gainsPerTrip: ratio(platforms.reduce((sum, platform) => sum + platform.gains, 0), trips,
         tripsComplete && activePlatforms.every((platform) => platform.gainsComplete)) },
-    profitability: { gains: totals.gains, costs: totals.costs, balance: totals.balance, goal, missing, required: missing,
-      requiredDaily: missing === null ? null : ratio(missing, remainingDates.length), futureCosts: 0, remainingDays: remainingDates.length },
+    profitability: { gains: totals.gains, costs: totals.costs, balance: totals.balance, goal, missing, required,
+      requiredDaily, futureCosts: 0, remainingDays: remainingDates.length },
     chart: { dates, meta, attained }, platforms,
     categories: reportCategoryCosts(expenses, goals, categories, from, effectiveTo, reference),
     vehicle: { km, consumption: ratio(measuredKm, measuredVolume), consumptionUnit: "L" as const,

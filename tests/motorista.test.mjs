@@ -385,15 +385,27 @@ test("ciclo futuro não fornece consumo observado a jornada anterior", () => {
     10,
   );
 });
-test("meta considera saldo negativo e despesas pendentes mesmo depois de atingir meta", () => {
+test("meta considera saldo negativo, aplica quociente dos últimos 30 dias e zera após atingir meta", () => {
   const a = planning({ expenses: [expense("a", "2026-10-04", 20000)] });
   assert.equal(a.realized, -20000);
-  assert.equal(a.required, 140000);
-  assert.equal(a.requiredDaily, 70000);
+  assert.equal(a.missing, 120000);
+  assert.equal(a.required, 120000);
+  assert.equal(a.requiredDaily, 60000);
   const b = planning({ days: [day("2026-10-04", { uberCents: 110000 })] });
   assert.equal(b.missing, 0);
-  assert.equal(b.required, 10000);
-  assert.equal(b.requiredDaily, 5000);
+  assert.equal(b.required, 0);
+  assert.equal(b.requiredDaily, 0);
+  const c = planning({
+    days: [day("2026-10-04", { uberCents: 30000 })],
+    expenses: [expense("e1", "2026-10-04", 10000)],
+  });
+  assert.equal(c.realized, 20000);
+  assert.equal(c.missing, 80000);
+  assert.equal(c.base.gainsPerDay, 30000);
+  assert.equal(c.base.profitPerDay, 20000);
+  assert.equal(c.base.gainPerProfitRatio, 1.5);
+  assert.equal(c.required, 120000);
+  assert.equal(c.requiredDaily, 60000);
 });
 test("hoje pendente desconta ganhos e gastos já feitos; fechado remove dia restante", () => {
   const records = [
@@ -404,17 +416,17 @@ test("hoje pendente desconta ganhos e gastos já feitos; fechado remove dia rest
     days: records,
     expenses: [expense("a", "2026-10-05", 6000)],
   });
-  assert.equal(a.variable, 14000);
   assert.equal(a.remaining.length, 2);
   assert.equal(a.realized, 49000);
-  assert.equal(a.projected, 100000);
+  assert.equal(a.missing, 51000);
+  assert.equal(a.projected, 147000);
   records[1].status = "closed";
   const b = planning({
     days: records,
     expenses: [expense("a", "2026-10-05", 6000)],
   });
   assert.equal(b.remaining.length, 1);
-  assert.equal(b.variable, 10000);
+  assert.equal(b.requiredDaily, 51000 * (55000 / 49000));
 });
 test("sem dias restantes, mês encerrado e mês futuro não dividem por zero", () => {
   assert.equal(
@@ -447,7 +459,7 @@ test("sem dias restantes, mês encerrado e mês futuro não dividem por zero", (
   assert.equal(last.remaining.length, 1);
   assert.equal(last.requiredDaily, 100000);
 });
-test("pagamento vinculado substitui previsão pendente sem dupla contagem", () => {
+test("pagamento vinculado substitui previsão pendente e reduz saldo realizado quando ocorre até a referência", () => {
   const plan = {
     id: "aluguel",
     date: "2026-10-06",
@@ -465,7 +477,7 @@ test("pagamento vinculado substitui previsão pendente sem dupla contagem", () =
   const paid = planning({ plans: [plan], expenses: [payment] });
   assert.equal(paid.commitments, 0);
   assert.equal(paid.realized, -30000);
-  assert.equal(paid.required, pending.required);
+  assert.equal(paid.required, 130000);
 });
 test("recorrência no dia 31 produz ocorrência única em meses curtos", () => {
   const plan = {
@@ -486,23 +498,35 @@ test("recorrência no dia 31 produz ocorrência única em meses curtos", () => {
     0,
   );
 });
-test("previsão separa fixos e extraordinários e inclui despesas em folgas na base", () => {
+test("previsão separa fixos e extraordinários e usa janela fixa de 30 dias corridos", () => {
   const records = [
+    day("2026-09-05", { uberCents: 999999 }),
+    day("2026-09-06", { uberCents: 20000 }),
     day("2026-10-01", { uberCents: 30000 }),
     day("2026-10-03", { uberCents: 50000 }),
   ];
   const costs = [
+    expense("fora", "2026-09-05", 888888),
+    expense("inicio30", "2026-09-06", 5000),
     expense("a", "2026-10-01", 1000),
     expense("folga", "2026-10-02", 3000),
-    expense("fixo", "2026-10-02", 90000, "fixo"),
-    expense("extra", "2026-10-03", 50000, "extra"),
+    expense("fixo", "2026-10-02", 11000, "fixo"),
+    expense("extra", "2026-10-03", 5000, "extra"),
   ];
   const b = calc.historicalBase(records, costs, categories, "2026-10-05", 30);
-  assert.equal(b.dailyVariable, 2000);
-  assert.equal(b.separatedCents, 140000);
-  assert.equal(b.days, 2);
+  assert.equal(b.from, "2026-09-06");
+  assert.equal(b.to, "2026-10-05");
+  assert.equal(b.days, 3);
+  assert.equal(b.gains, 100000);
+  assert.equal(b.costs, 25000);
+  assert.equal(b.balance, 75000);
+  assert.equal(b.gainsPerDay, 100000 / 3);
+  assert.equal(b.profitPerDay, 25000);
+  assert.equal(b.gainPerProfitRatio, 100000 / 75000);
+  assert.equal(b.dailyVariable, 3000);
+  assert.equal(b.separatedCents, 16000);
 });
-test("lançamentos futuros não viram saldo realizado e substituem previsão daquela data", () => {
+test("lançamentos futuros não viram saldo realizado nem entram na base de 30 dias", () => {
   const plan = {
     id: "fixo",
     date: "2026-10-06",
@@ -522,8 +546,9 @@ test("lançamentos futuros não viram saldo realizado e substituem previsão daq
   });
   assert.equal(p.realized, 0);
   assert.equal(p.commitments, 0);
-  assert.equal(p.variable, 10000);
-  assert.equal(p.futureCosts, 52000);
+  assert.equal(p.futureRecorded, 42000);
+  assert.equal(p.required, 100000);
+  assert.equal(p.requiredDaily, 50000);
 });
 test("comparação semanal cruza meses; mês corrente não inclui dias futuros", () => {
   assert.deepEqual(base.weekBounds("2026-W40"), {

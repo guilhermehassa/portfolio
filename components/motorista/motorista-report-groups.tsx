@@ -57,7 +57,7 @@ export function ReportGroups({ report }: { report: ReturnType<typeof reportAnaly
         <Metric label="Saldo" value={money(profitability.balance)} />
       </div>
       <ReportLineChart title="Meta diária e ganhos atingidos" dates={chart.dates} series={[
-        { id: "meta", label: "Meta de ganho diário necessário", color: "var(--motorista-muted)", values: chart.meta },
+        { id: "meta", label: "Meta", color: "var(--motorista-muted)", values: chart.meta },
         { id: "attained", label: "Atingido", color: "var(--motorista-accent)", values: chart.attained },
       ]} />
       <div className="motorista-stats">

@@ -76,16 +76,19 @@ test("resumos e todos lucros incorporam gastos sem jornada e manutenção propor
   assert.deepEqual(result.findings, { gainsPerHour: 1000, gainsPerDay: 1000, gainsPerKm: 100,
     profitPerHour: 849, profitPerDay: 849, profitPerKm: 84.9, gainsPerTrip: 500 });
   assert.equal(result.profitability.balance, 849);
-  assert.equal(result.profitability.required, 1151);
+  assert.equal(result.profitability.missing, 1151);
+  assert.equal(result.profitability.required, 1151 * (1000 / 849));
 });
 
-test("relatórios cortam hoje em mês e semana e bloqueiam período totalmente futuro", () => {
+test("relatórios cortam ganhos e gastos realizados hoje em mês e semana, mantêm datas futuras da meta no gráfico e bloqueiam período totalmente futuro", () => {
   const result = analysis({ filter: "week", from: "2026-10-05", to: "2026-10-11", days: [day("2026-10-07", { uberCents: 10 }),
     day("2026-10-08", { uberCents: 999 })], expenses: [expense("2026-10-08", 999)] });
   assert.equal(result.effectiveTo, "2026-10-07");
   assert.equal(result.summary.gains, 10);
   assert.equal(result.summary.costs, 0);
-  assert.deepEqual(result.chart.dates, ["2026-10-05", "2026-10-06", "2026-10-07"]);
+  assert.deepEqual(result.chart.dates, ["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09", "2026-10-10", "2026-10-11"]);
+  assert.equal(result.chart.attained[2], 10);
+  assert.equal(result.chart.attained[3], null);
   assert.throws(() => analysis({ from: "2026-11-01", to: "2026-11-30" }), /atuais ou passados/);
   assert.throws(() => analysis({ filter: "day" }), /semana ou mês/);
 });
@@ -149,30 +152,52 @@ test("plataformas usam próprios totais e completude independente, participaçã
   assert.equal(missingGain.platforms[0].averagePerTrip, null);
 });
 
-test("Meta histórica usa saldo anterior à data, sem antecipar ganhos, gastos e encerramentos seguintes", () => {
-  const goals = [{ month: "2026-10", cents: 1000, workDates: ["2026-10-05", "2026-10-06"] }];
-  const days = [day("2026-10-05", { uberCents: 200 }), day("2026-10-06", { uberCents: 1000 })];
-  const result = analysis({ days, goals, expenses: [expense("2026-10-06", 500)], reference: "2026-10-06" });
-  assert.equal(result.chart.meta[4], 500);
-  assert.equal(result.chart.meta[5], 800);
-  assert.equal(result.chart.attained[4], 200);
-  assert.equal(result.chart.attained[5], 1000);
-  assert.equal(result.profitability.balance, 700);
-  assert.equal(result.profitability.required, 300);
-  assert.equal(result.profitability.requiredDaily, null);
-  const changedLater = analysis({ days: [days[0], { ...days[1], uberCents: 999999 }], goals,
-    expenses: [expense("2026-10-06", 999999)], reference: "2026-10-06" });
-  assert.deepEqual(changedLater.chart.meta, result.chart.meta);
+test("Meta diária aplica quociente dos últimos 30 dias, sobe após resultado abaixo da meta, cai após superar a meta e projeta dias previstos futuros", () => {
+  const goals = [{ month: "2026-10", cents: 4000, workDates: ["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-09", "2026-10-10"] }];
+  // Dia 05: ganho 300, gasto 100 -> saldo 200 (abaixo da meta diária inicial de 800)
+  // Dia 06: ganho 2700, gasto 700 -> saldo 2000 (acima da meta diária de 950)
+  // Dia 07 (hoje, encerrado): ganho 1500, gasto 300 -> saldo 1200
+  // Saldo acumulado até hoje (07/10): 3400. Falta 600 para os 2 dias futuros previstos (09/10 e 10/10) -> 300/dia * multiplier
+  const days = [
+    day("2026-10-05", { uberCents: 300 }),
+    day("2026-10-06", { uberCents: 2700 }),
+    day("2026-10-07", { uberCents: 1500 }),
+  ];
+  const expenses = [expense("2026-10-05", 100), expense("2026-10-06", 700), expense("2026-10-07", 300)];
+  const result = analysis({ days, goals, expenses, reference: "2026-10-07" });
+  const multiplier = 4500 / 3400;
+  // Dias 01 a 04 não estavam previstos no calendário -> null na linha da meta
+  assert.deepEqual(result.chart.meta.slice(0, 4), [null, null, null, null]);
+  // Dia 05 (início): falta 4000 / 5 dias = 800 * multiplier
+  assert.equal(result.chart.meta[4], 800 * multiplier);
+  // Dia 06 (após fazer só 200 de saldo no dia 05): falta (4000 - 200) / 4 dias = 950 * multiplier (AUMENTOU)
+  assert.equal(result.chart.meta[5], 950 * multiplier);
+  assert.ok(result.chart.meta[5] > result.chart.meta[4]);
+  // Dia 07 (após fazer 2000 de saldo no dia 06): falta (4000 - 2200) / 3 dias = 600 * multiplier (DIMINUIU)
+  assert.equal(result.chart.meta[6], 600 * multiplier);
+  assert.ok(result.chart.meta[6] < result.chart.meta[5]);
+  // Dia 08 não previsto -> null; Dias 09 e 10 previstos no futuro -> requiredDaily = (600 / 2) * multiplier = 300 * multiplier
+  assert.equal(result.chart.meta[7], null);
+  assert.equal(result.chart.meta[8], 300 * multiplier);
+  assert.equal(result.chart.meta[9], 300 * multiplier);
+  assert.equal(result.chart.attained[4], 300);
+  assert.equal(result.chart.attained[5], 2700);
+  assert.equal(result.chart.attained[6], 1500);
+  assert.equal(result.chart.attained[8], null);
+  assert.equal(result.profitability.balance, 3400);
+  assert.equal(result.profitability.missing, 600);
+  assert.equal(result.profitability.required, 600 * multiplier);
+  assert.equal(result.profitability.requiredDaily, 300 * multiplier);
 });
 
-test("ganho necessário é somente déficit atual, sem variable, compromissos ou manutenção futura", () => {
+test("ganho necessário aplica quociente dos últimos 30 dias sobre o déficit atual, sem gastos futuros", () => {
   const result = analysis({ goals: [{ month: "2026-10", cents: 1000, variableDailyCents: 99999, workDates: ["2026-10-05", "2026-10-09"] }],
     days: [day("2026-10-05", { uberCents: 500 })], expenses: [master({ totalCents: 100, startMonth: "2026-10", installments: 1 }),
       expense("2026-10-09", 999999)], plans: [{ id: "p", date: "2026-10-09", cents: 99999, categoryId: "x", note: "" }] });
   assert.equal(result.summary.costs, 50);
   assert.equal(result.profitability.balance, 450);
   assert.equal(result.profitability.missing, 550);
-  assert.equal(result.profitability.required, 550);
+  assert.equal(result.profitability.required, 550 * (500 / 450));
   assert.equal(result.profitability.futureCosts, 0);
 });
 
@@ -194,7 +219,8 @@ test("consumo manual é razão física ponderada pela distância, ausência lacu
   assert.equal(result.vehicle.consumption, 16);
   assert.equal(result.vehicle.consumptionCoveredDays, 2);
   assert.equal(result.vehicle.consumptionRecordedDays, 3);
-  assert.deepEqual(result.vehicle.consumptionValues, [10, 20, 40, null, null, null, null]);
+  assert.deepEqual(result.vehicle.consumptionValues.slice(0, 7), [10, 20, 40, null, null, null, null]);
+  assert.equal(result.vehicle.consumptionValues.length, 31);
   assert.equal(result.vehicle.consumptionUnit, "L");
 });
 
@@ -205,7 +231,7 @@ test("sem meta/calendário mantém valores reais sem fabricar Meta, consumo ou d
   assert.equal(result.summary.workedDays, 0);
   assert.equal(result.profitability.goal, null);
   assert.equal(result.averages.gainsPerDay, null);
-  assert.deepEqual(result.chart.meta, Array(7).fill(null));
+  assert.deepEqual(result.chart.meta, Array(31).fill(null));
   assert.equal(result.vehicle.consumption, null);
 });
 

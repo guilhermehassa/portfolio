@@ -427,22 +427,26 @@ export function plannedOccurrences(
 export function historicalBase(
   days: Day[],
   expenses: Expense[],
-  categories: Category[],
-  reference: string,
+  categories: Category[] = [],
+  reference = localDate(),
   count = 30,
+  goals: Goal[] = [],
 ) {
-  const work = days
-    .filter(
-      (d) =>
-        eligible(d) &&
-        (d.date < reference || (d.date === reference && d.status === "closed")),
-    )
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, count);
-  const from = work.at(-1)?.date;
-  const to = work[0]?.date;
-  const window =
-    from && to ? expenses.filter((e) => e.kind !== "maintenance" && e.date >= from && e.date <= to) : [];
+  const from = addDate(reference, -(count - 1));
+  const to = reference;
+  const periodDays = days.filter((d) => d.date >= from && d.date <= to);
+  const work = periodDays.filter(eligible);
+  const summary = periodTotals(periodDays, expenses, goals, from, to, reference);
+  const gainsPerDay = work.length > 0 ? summary.gains / work.length : null;
+  const profitPerDay = work.length > 0 ? summary.balance / work.length : null;
+  const costsPerDay = work.length > 0 ? summary.costs / work.length : null;
+  const gainPerProfitRatio =
+    work.length > 0 && summary.balance > 0
+      ? summary.gains / summary.balance
+      : null;
+  const window = expenses.filter(
+    (e) => e.kind !== "maintenance" && e.date >= from && e.date <= to,
+  );
   const separated = window.filter(
     (e) =>
       e.plannedExpenseId ||
@@ -455,12 +459,17 @@ export function historicalBase(
     days: work.length,
     from,
     to,
-    dailyGains: work.length
-      ? Math.round(work.reduce((s, d) => s + income(d), 0) / work.length)
-      : null,
+    gains: summary.gains,
+    costs: summary.costs,
+    balance: summary.balance,
+    dailyGains: gainsPerDay === null ? null : Math.round(gainsPerDay),
     dailyVariable: work.length
       ? Math.round(variable.reduce((s, e) => s + e.cents, 0) / work.length)
       : null,
+    gainsPerDay,
+    profitPerDay,
+    costsPerDay,
+    gainPerProfitRatio,
     separatedCents: separated.reduce((s, e) => s + e.cents, 0),
     unclassified: variable.filter(
       (e) => !categories.find((c) => c.id === e.categoryId)?.costKind,
@@ -511,101 +520,35 @@ export function monthlyPlanning(args: {
     .reduce((s, row) => s + row.allocatedCents, 0);
   const futureMaintenance = maintenanceRows(expenses, allocationGoals, bounds.from, bounds.to, actualTo)
     .reduce((s, row) => s + row.futureCents, 0);
-  const historyReference = future
-    ? reference
-    : ended
-      ? addDate(bounds.to, 1)
-      : reference;
+  const historyReference = ended ? bounds.to : reference;
   const base = historicalBase(
     days,
     expenses,
     categories,
     historyReference,
-    own?.historyDays ?? 30,
+    30,
+    allocationGoals,
   );
   const dailyVariable =
     args.variableDailyCents ?? own?.variableDailyCents ?? base.dailyVariable;
-  const isVariable = (e: Expense) =>
-    e.kind !== "maintenance" && !e.plannedExpenseId &&
-    !["fixed", "extraordinary"].includes(
-      categories.find((c) => c.id === e.categoryId)?.costKind ?? "",
-    );
-  const variable = ended
-    ? 0
-    : remaining.reduce(
-        (s, date) =>
-          s +
-          Math.max(
-            (dailyVariable ?? 0) -
-              expenses
-                .filter(
-                  (e) => e.date === date && e.date <= actualTo && isVariable(e),
-                )
-                .reduce((v, e) => v + e.cents, 0),
-            0,
-          ),
-        0,
-      );
+  const occurrences = plannedOccurrences(plans, month, expenses);
+  const pending = ended ? [] : occurrences.filter((o) => !o.expenseId);
+  const commitments = pending.reduce((s, o) => s + o.cents, 0);
   const upcoming = ended
     ? []
     : expenses.filter(
         (e) =>
           e.kind !== "maintenance" && e.date > actualTo && e.date >= bounds.from && e.date <= bounds.to,
       );
-  // Pagamentos futuros registrados substituem a previsão variável daquela data.
-  const futureVariable = upcoming.filter(isVariable);
-  const variableAdjusted = Math.max(
-    variable -
-      remaining.reduce(
-        (s, date) =>
-          s +
-          Math.min(
-            dailyVariable ?? 0,
-            futureVariable
-              .filter((e) => e.date === date)
-              .reduce((v, e) => v + e.cents, 0),
-          ),
-        0,
-      ),
-    0,
-  );
-  const occurrences = plannedOccurrences(plans, month, expenses);
-  const pending = ended ? [] : occurrences.filter((o) => !o.expenseId);
-  const commitments = pending.reduce((s, o) => s + o.cents, 0);
   const futureRecorded = upcoming.reduce((s, e) => s + e.cents, 0);
-  const futureCosts = variableAdjusted + commitments + futureRecorded + futureMaintenance;
+  const missing = goal === null ? null : Math.max(goal - realized, 0);
+  const multiplier = base.gainPerProfitRatio ?? 1;
   const required =
-    goal === null ? null : Math.max(goal - realized + futureCosts, 0);
-  const partialGains = remaining.reduce(
-    (s, date) =>
-      s +
-      days
-        .filter((d) => d.date === date && date <= actualTo)
-        .reduce((v, d) => v + income(d), 0),
-    0,
-  );
-  const futureRecordedGains = days
-    .filter(
-      (d) => d.date > actualTo && d.date >= bounds.from && d.date <= bounds.to,
-    )
-    .reduce((s, d) => s + income(d), 0);
-  const remainingRecordedGains = remaining
-    .filter((date) => date > actualTo)
-    .reduce(
-      (s, date) =>
-        s +
-        days.filter((d) => d.date === date).reduce((v, d) => v + income(d), 0),
-      0,
-    );
-  const projectedGains =
-    base.dailyGains == null
-      ? null
-      : Math.max(
-          base.dailyGains * remaining.length -
-            partialGains -
-            remainingRecordedGains,
-          0,
-        ) + futureRecordedGains;
+    missing === null ? null : missing * multiplier;
+  const requiredDaily =
+    missing !== null && remaining.length
+      ? (missing / remaining.length) * multiplier
+      : null;
   return {
     month,
     reference,
@@ -622,24 +565,21 @@ export function monthlyPlanning(args: {
     defaultCalendar: !own?.workDates,
     base,
     dailyVariable,
-    variable: variableAdjusted,
+    variable: 0,
     commitments,
     futureRecorded,
-    futureCosts,
+    futureCosts: 0,
     pending,
     occurrences,
-    missing: goal === null ? null : Math.max(goal - realized, 0),
+    missing,
     required,
-    requiredDaily:
-      required !== null && remaining.length
-        ? required / remaining.length
-        : null,
+    requiredDaily,
     projected: ended
       ? realized
-      : projectedGains === null
+      : base.profitPerDay === null
         ? null
-        : realized + projectedGains - futureCosts,
-    forecastComplete: dailyVariable !== null,
+        : realized + Math.round(base.profitPerDay * remaining.length),
+    forecastComplete: base.gainPerProfitRatio !== null,
     percent: goal ? (realized / goal) * 100 : null,
   };
 }

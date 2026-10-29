@@ -3,7 +3,6 @@ import { useState, type FormEvent } from "react";
 import {
   defaultWorkDates,
   datesBetween,
-  historicalBase,
   plannedOccurrences,
 } from "@/lib/motorista-evolution";
 import {
@@ -32,6 +31,15 @@ export type SaveDocument = (
   data: object,
   previous?: object,
 ) => Promise<boolean>;
+const CALENDAR_WEEKDAYS = [
+  "dom.",
+  "seg.",
+  "ter.",
+  "qua.",
+  "qui.",
+  "sex.",
+  "sáb.",
+];
 type Props = {
   days: Day[];
   expenses: Expense[];
@@ -63,9 +71,6 @@ export default function MotoristaSettings(props: Props) {
 
 function GoalSettings({
   goals,
-  days,
-  expenses,
-  categories,
   saving,
   save,
 }: Props) {
@@ -76,8 +81,6 @@ function GoalSettings({
     month: string;
     cents: string;
     workDates: string[];
-    historyDays: string;
-    variable: string;
     previous?: Goal;
   } | null>(null);
   const fields =
@@ -87,44 +90,17 @@ function GoalSettings({
           month,
           cents: inherited ? money(inherited.cents) : "",
           workDates: own?.workDates ?? defaultWorkDates(month),
-          historyDays: String(own?.historyDays ?? 30),
-          variable:
-            own?.variableDailyCents == null
-              ? ""
-              : money(own.variableDailyCents),
           previous: own,
         };
   const set = (patch: Partial<typeof fields>) =>
     setDraft({ ...fields, ...patch });
   const [error, setError] = useState("");
-  const base = historicalBase(
-    days,
-    expenses,
-    categories,
-    localDate(),
-    Number(fields.historyDays) || 30,
-  );
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError("");
-    const cents = parseCents(fields.cents),
-      variableDailyCents = fields.variable.trim()
-        ? parseCents(fields.variable)
-        : null,
-      historyDays = Number(fields.historyDays);
-    if (
-      !isMonth(month) ||
-      !Number.isSafeInteger(cents) ||
-      cents <= 0 ||
-      !Number.isInteger(historyDays) ||
-      historyDays < 1 ||
-      historyDays > 365 ||
-      (variableDailyCents !== null &&
-        (!Number.isSafeInteger(variableDailyCents) || variableDailyCents < 0))
-    )
-      return setError(
-        "Revise a meta, a base de 1 a 365 dias e o gasto previsto.",
-      );
+    const cents = parseCents(fields.cents);
+    if (!isMonth(month) || !Number.isSafeInteger(cents) || cents <= 0)
+      return setError("Revise o mês e a meta mensal de saldo.");
     if (
       await save(
         "goals",
@@ -134,8 +110,6 @@ function GoalSettings({
           month,
           cents,
           workDates: [...fields.workDates].sort(),
-          historyDays,
-          variableDailyCents,
         },
         fields.previous,
       )
@@ -168,34 +142,11 @@ function GoalSettings({
             required
           />
         </label>
-        <label>
-          Base histórica (dias trabalhados)
-          <input
-            type="number"
-            min={1}
-            max={365}
-            value={fields.historyDays}
-            onChange={(e) => set({ historyDays: e.target.value })}
-          />
-        </label>
-        <label>
-          Gasto variável por dia planejado (R$, opcional)
-          <MoneyField
-            value={fields.variable}
-            onChange={(v) => set({ variable: v })}
-          />
-        </label>
       </div>
       <p className="motorista-muted">
-        Só o valor da meta é herdado dos meses anteriores. Calendário e previsão
-        são próprios deste mês. Sem ajuste manual, o gasto sugerido é{" "}
-        {base.dailyVariable === null
-          ? "indisponível"
-          : money(base.dailyVariable)}{" "}
-        por dia, usando {base.days} dias encerrados/legados{" "}
-        {base.from ? `de ${base.from} a ${base.to}` : "disponíveis"}.{" "}
-        {base.separatedCents > 0 &&
-          `${money(base.separatedCents)} em compromissos, custos fixos ou extraordinários ficaram separados da previsão variável.`}
+        Só o valor da meta é herdado dos meses anteriores; o calendário é
+        próprio deste mês. A previsão de ganho necessário usa a média dos
+        últimos 30 dias corridos (Ganho/dia ÷ Lucro/dia).
       </p>
       <div className="motorista-actions">
         <strong>Dias planejados: {fields.workDates.length}</strong>
@@ -214,33 +165,42 @@ function GoalSettings({
           Limpar calendário
         </button>
       </div>
+      <div className="motorista-calendar-weekdays" aria-hidden="true">
+        {CALENDAR_WEEKDAYS.map((day) => (
+          <span key={day}>{day}</span>
+        ))}
+      </div>
       <div
         className="motorista-calendar"
         role="group"
         aria-label="Datas planejadas de trabalho"
       >
-        {datesBetween(bounds.from, bounds.to).map((date) => (
-          <button
-            type="button"
-            key={date}
-            aria-pressed={fields.workDates.includes(date)}
-            aria-label={`Trabalhar em ${date}`}
-            onClick={() =>
-              set({
-                workDates: fields.workDates.includes(date)
-                  ? fields.workDates.filter((d) => d !== date)
-                  : [...fields.workDates, date],
-              })
-            }
-          >
-            <small>
-              {new Date(date + "T12:00:00").toLocaleDateString("pt-BR", {
-                weekday: "short",
-              })}
-            </small>
-            <strong>{Number(date.slice(-2))}</strong>
-          </button>
-        ))}
+        {datesBetween(bounds.from, bounds.to).map((date, index) => {
+          const weekday = new Date(date + "T12:00:00").getDay();
+          return (
+            <button
+              type="button"
+              key={date}
+              style={index === 0 ? { gridColumnStart: weekday + 1 } : undefined}
+              aria-pressed={fields.workDates.includes(date)}
+              aria-label={`Trabalhar em ${date}`}
+              onClick={() =>
+                set({
+                  workDates: fields.workDates.includes(date)
+                    ? fields.workDates.filter((d) => d !== date)
+                    : [...fields.workDates, date],
+                })
+              }
+            >
+              <small>
+                {new Date(date + "T12:00:00").toLocaleDateString("pt-BR", {
+                  weekday: "short",
+                })}
+              </small>
+              <strong>{Number(date.slice(-2))}</strong>
+            </button>
+          );
+        })}
       </div>
       <small>
         Começa com segunda a sexta como sugestão ajustável. Fechados e folgas

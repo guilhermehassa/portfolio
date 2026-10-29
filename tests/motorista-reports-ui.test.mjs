@@ -65,8 +65,13 @@ test("linha diária distingue ganho zero de ausência e não estende dados além
     { ...emptyDay("2025-01-16"), status: "closed", uberCents: 25000 },
   ], goals: [{ month: "2025-01", cents: 50000, variableDailyCents: 0, workDates: ["2025-01-14", "2025-01-15", "2025-01-16"] }] });
   assert.ok(markup.includes(`2025-01-14 · Atingido: ${money(0)}`));
+  assert.ok(markup.includes(`2025-01-15 · Meta: ${money(25000)}`));
+  assert.ok(markup.includes(`2025-01-16 · Meta: ${money(50000)}`));
+  assert.ok(!markup.includes("2025-01-13 · Meta:"));
   assert.ok(!markup.includes("2025-01-15 · Atingido:"));
   assert.ok(!markup.includes("2025-01-16 · Atingido:"));
+  assert.ok(markup.includes("motorista-chart-axis"));
+  assert.ok(markup.includes("motorista-chart-scroll"));
   assert.ok(markup.includes("Não informado"));
 });
 
